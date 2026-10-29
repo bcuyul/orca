@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeSecureFile } from '../../shared/secure-file'
 import { emptyProjectHub, isHubDocument, type HubDocument } from '../../shared/project-hub-types'
@@ -13,8 +13,13 @@ export class ProjectHubStore {
   constructor(private readonly userData: string) {}
   read(projectId: string): HubDocument {
     const file=hubFilePath(this.userData,projectId)
-    if(!existsSync(file)) return emptyProjectHub(projectId)
-    if(statSync(file).size>LIMIT) throw new Error('Project Hub document too large')
+    let bytes: number
+    try { bytes=statSync(file).size }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code==='ENOENT') return emptyProjectHub(projectId)
+      throw error // EACCES/EPERM are not proof the document is absent.
+    }
+    if(bytes>LIMIT) throw new Error('Project Hub document too large')
     const data: unknown = JSON.parse(readFileSync(file,'utf8'))
     if(!isHubDocument(data)||data.projectId!==projectId)
       throw new Error('Invalid/cross-project Project Hub document: refusing overwrite')
