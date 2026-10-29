@@ -64,6 +64,28 @@ pnpm dev --worktree-profile
 
 Do **not** merge these PRs into `main` or upstream based on plan-only tests. Orion/Orca host support, cross-window crashes, remote hosting, security review and UI regressions remain required.
 
+
+## Diagnosing `agent_session_operation_unknown` safely
+
+The host's `agent.launchReplay` is a valid **first-launch** operation when provided a durable `operationId`; it is not a read-only replay endpoint. Orca's `agent-launch.ts` deliberately maps some uncertain failures to `agent_session_operation_unknown` when it cannot prove that no worktree or terminal was created. The generic code does **not** tell whether the CLI began working.
+
+- Keep the `unconfirmed` delegation and its original `operationId` intact. Do not create a replacement operation or re-click launch.
+- Inspect the **actual repository's** local worktrees and generated branches before interpreting the Orca UI, which might not refresh after a partial operation:
+
+```powershell
+cd "$HOME\Projects\Orca-ProjectHub-Hermes"
+git worktree list --porcelain
+git branch --list "ph-ph-001-*"
+Get-ChildItem "$HOME\orca\workspaces\Orca-ProjectHub" -Directory | Select-Object Name, FullName
+Get-Command opencode -ErrorAction SilentlyContinue | Select-Object Name, Source
+```
+
+- Compare the actual branch/worktree name to the `ph-...` name shown in the plan. A branch can exist even if the app's worktree list was not updated. If the CLI is active, inspect the matching tab; do **not** paste the prompt again.
+- If neither branch nor worktree is present, this **suggests** failure before workspace creation, but does not prove that every host-side effect was absent. Capture relevant sanitized runtime error logs/host receipt before recovery.
+- The current PR #4 has **no supported UI recovery** for `unconfirmed`. Keep the slot occupied until a host-owned reconciliation flow is implemented. A new story or new operation is not a substitute for reconciling the original one.
+
+For future diagnostics, log host-side classified failure stage and stable IDs without leaking CLI environment variables or secrets. See `src/main/runtime/rpc/methods/agent-launch.ts` and `agent-launch-replay.ts`. Avoid blindly swapping to `agent.launch`: both endpoints may use the same replay-safe path, while `agent.launchReplay` intentionally fails closed on uncertain side effects.
+
 ## Incremental roadmap (full plan in ROADMAP_ORQUESTACION_AGENTES.md)
 
 1. **Orca-owned execution bridge:** move launch+receipt persistence into a host-side saga with durable reconciliation and host capability negotiation.
