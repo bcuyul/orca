@@ -146,7 +146,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
     <div className="grid grid-cols-2 gap-2">
       <label className="text-xs">Ejecutor CLI
         <select className="mt-1 w-full rounded border border-border bg-background p-2" value={worker}
-          disabled={busy} onChange={e=>setWorker(e.target.value as HubCliAgent)}>
+          disabled={busy} onChange={e=>{const next=e.target.value as HubCliAgent;setWorker(next);if(reviewer===next)setReviewer('human')}}>
           {HUB_CLI_AGENTS.map(a=><option key={a} value={a}>{names[a]}</option>)}
         </select>
       </label>
