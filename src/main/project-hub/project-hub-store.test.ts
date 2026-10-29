@@ -91,7 +91,10 @@ describe('ProjectHubStore',()=>{
     const initial=db.save(projectId,empty,0)
     const planned=prepareHubDelegation({document:initial,storyIds:['PH-001'],
       agent:'opencode',reviewer:'codex',baseBranch:'main',repoId:'repoA',hostId:'local',now:new Date().toISOString(),
-      mint:()=>({id:'hub-'+'1'.repeat(32),operationId:'1793290000000-'+'1'.repeat(32)})})
+      mint:()=>({id:`hub-${'1'.repeat(32)}`,operationId:`1793290000000-${'1'.repeat(32)}`})})
+    expect(()=>db.save(projectId,{...planned,delegations:planned.delegations?.map(row=>({
+      ...row,status:'launched' as const,worktreeId:'wt1',terminalHandle:'term1'
+    }))},1)).toThrow(/Delegation history/)
     const saved=db.save(projectId,planned,1)
     expect(db.read(projectId).delegations?.[0].status).toBe('planned')
     const row=saved.delegations![0]
