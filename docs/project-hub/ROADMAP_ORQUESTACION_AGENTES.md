@@ -72,7 +72,7 @@ flowchart TD
 
 **P0 · Bloquea ejecución multirepo robusta**
 
-- Nomenclatura definitiva: pestaña `Orquestación`, tarjeta `Centro de ejecución`; relegar el contrato manual a sección expandible `Handoff manual (legado)` y eliminar selectores duplicados.
+- Nomenclatura definitiva: pestaña `Orquestación`, tarjeta `Centro de ejecución`; el antiguo contrato de copiar/pegar fue retirado de la UI para eliminar selectores duplicados. El envío automático actual inicia una **nueva sesión CLI en un nuevo worktree** por historia.
 - Panel de detalle de historia: criterios, riesgo, dependencias, agente ejecutor, revisor, ruta/servicio afectado, artifacts, decisiones.
 - Distinguir de forma visible **Project.id**, **repo Git (fork real)**, **host**, **worktree activo**, **rama base** y **SHA base**.
 - Resolver fallback `github:stablyai/orca` vs fork real `bcuyul/orca` mediante una regla canónica + migración segura; no fusionar dos proyectos ambiguos.
@@ -100,7 +100,7 @@ flowchart TD
 - Mostrar run, tarea, CLI/modelo efectivo si el proveedor lo informa, worktree, terminal, últimas actividades, heartbeat, cambios Git y bloqueo.
 - Separar `terminal viva`, `prompt entregado`, `trabajo en curso`, `reporte de agente recibido`, `CI pasó` y `aprobado`.
 - Suscripciones/eventos del runtime y reconciliación periódica moderada, sin polling masivo de terminales; conservar lo mínimo en el renderer.
-- Controles **Abrir sesión**, **Ver diff**, **Solicitar revisión**, **Detener**, **Reintentar con plan autorizado**, **Pausar cola**. No inventar mensajes de “completado”.
+- Controles **Abrir sesión**, **Ver diff**, **Solicitar revisión**, **Detener**, **Reintentar con plan autorizado**, **Pausar cola**. No inventar mensajes de “completado”. Añadir enlace opcional a sesiones ya existentes solo cuando se pueda validar su pertenencia al worktree/host, su propiedad y autorización para recibir nuevas tareas.
 - Registro JSONL/eventos estructurados y salida terminal acotada/redactada. Si aporta valor, usar Ponytail para tail/seguimiento de logs; no usar logs como fuente de verdad de autorización.
 
 **Salida:** estado fiable tras cerrar/abrir la app; observabilidad de dos workers simultáneos sin mezcla de terminales.
