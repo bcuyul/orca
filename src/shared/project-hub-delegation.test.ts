@@ -22,7 +22,7 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
   it('prepares two distinct CLI worktrees with replayable operation IDs',()=>{
     const {doc,mint}=make()
     const result=prepareHubDelegation({document:doc,storyIds:['PH-001','PH-002'],
-      agent:'opencode',reviewer:'codex',baseBranch:'refs/heads/main',
+      agent:'opencode',reviewer:'codex',baseBranch:'refs/heads/main',repoId:'repoA',hostId:'local',
       now:'2026-10-29T12:00:00Z',mint})
     expect(result.delegations).toHaveLength(2)
     expect(result.delegations?.[0].name).toBe('ph-ph-001-000001')
@@ -35,7 +35,7 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
   it('rejects self-review, duplicate story, unknown story and repeat active plan',()=>{
     const {doc,mint}=make()
     const params={document:doc,storyIds:['PH-001'],agent:'opencode' as const,
-      reviewer:'codex' as const,baseBranch:'main',now:'2026-10-29',mint}
+      reviewer:'codex' as const,baseBranch:'main',repoId:'repoA',hostId:'local',now:'2026-10-29',mint}
     expect(()=>prepareHubDelegation({...params,reviewer:'opencode'})).toThrow()
     expect(()=>prepareHubDelegation({...params,storyIds:['PH-001','PH-001']})).toThrow()
     expect(()=>prepareHubDelegation({...params,storyIds:['PH-003']})).toThrow()
@@ -45,9 +45,10 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
   it('rejects mutation, skipped reservation or removal of launched agents',()=>{
     const {doc,mint}=make()
     const planned=prepareHubDelegation({document:doc,storyIds:['PH-001'],agent:'opencode',
-      reviewer:'human',baseBranch:'main',now:'2026-10-29',mint}).delegations!
+      reviewer:'human',baseBranch:'main',repoId:'repoA',hostId:'local',now:'2026-10-29',mint}).delegations!
     expect(isHubDelegationTransition(planned,[])).toBe(false)
     expect(isHubDelegationTransition(planned,[{...planned[0],agent:'claude'}])).toBe(false)
+    expect(isHubDelegationTransition(planned,[{...planned[0],repoId:'repoB'}])).toBe(false)
     expect(isHubDelegationTransition(planned,[{...planned[0],status:'launched',worktreeId:'wt1',terminalHandle:'term1'}])).toBe(false)
     const reserved=[{...planned[0],status:'launching' as const}]
     expect(isHubDelegationTransition(planned,reserved)).toBe(true)
@@ -59,7 +60,7 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
   it('validates host receipts and constrains worker prompt',()=>{
     const {doc,mint}=make()
     const planned=prepareHubDelegation({document:doc,storyIds:['PH-001'],agent:'opencode',
-      reviewer:'codex',baseBranch:'main',now:'2026-10-29',mint})
+      reviewer:'codex',baseBranch:'main',repoId:'repoA',hostId:'local',now:'2026-10-29',mint})
     expect(parseHubLaunchReceipt({worktreeId:'wt1',outcome:{kind:'structured',handle:'term1'}})).toBeNull()
     expect(parseHubLaunchReceipt({worktreeId:'wt1',outcome:{kind:'terminal',handle:'term1'}})).toEqual({worktreeId:'wt1',terminalHandle:'term1'})
     expect(renderHubWorkerPrompt(planned,planned.delegations![0])).toContain('Only modify files inside your new Orca worktree.')
