@@ -7,7 +7,7 @@ import type { RpcContext } from '../core'
 import { agentLaunchSurfaceFactory } from './agent-launch-surfaces'
 import { agentLaunchCallerNavigationId, selectAgentLaunchTabForCaller } from './agent-launch-caller-selection'
 import { agentLaunchWorkspaceFactory } from './agent-launch-worktree-creation'
-import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
+import type { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
 import { withPlacement, type AgentLaunchView } from './agent-launch-tab-publication'
 
 /** What a launch admitted under an operation id carries into its execution. */
