@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/project-hub-delegation'
 import { createStructuredAgentSessionOperationId } from '../../../../shared/structured-agent-session-mutation'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { summarizeHubDelegationCapacity } from '../../../../shared/project-hub-delegation-capacity'
 
 type Props={
   document:HubDocument
@@ -41,10 +42,9 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   const available=document.items.filter(item=>
     ['backlog','ready'].includes(item.status)&&!rows.some(d=>d.storyId===item.id)
   )
-  const running=rows.filter(d=>d.repoId===repoId&&d.hostId===hostId&&
-    ['launched','launching','unconfirmed'].includes(d.status)).length
+  const capacity=summarizeHubDelegationCapacity(rows,repoId,hostId,limit)
   const pending=rows.filter(d=>d.status==='planned'&&d.repoId===repoId&&d.hostId===hostId)
-  const slots=Math.max(0,limit-running)
+  const slots=capacity.available
 
   async function prepare():Promise<void>{
     setNotice('')
@@ -179,21 +179,27 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         onClick={()=>void prepare()}>Preparar {selected.length||''} historia(s)</button>
     </div>
     <p className="flex items-center gap-1 text-xs text-muted-foreground">
-      <GitBranch className="h-3.5 w-3.5"/> Base: {branch.replace(/^refs\/heads\//,'')} · Activos/pendientes de revisión: {running}/{limit}
+      <GitBranch className="h-3.5 w-3.5"/> Rama seleccionada: {branch.replace(/^refs\/heads\//,'')} · Cupos retenidos: {capacity.held}/{limit}
     </p>
+    <div className="grid grid-cols-3 gap-2 rounded border border-border p-2 text-xs" aria-label="Estado de delegaciones en este repositorio y host">
+      <p>Inicios confirmados: <strong>{capacity.launched}</strong><span className="block text-muted-foreground">Trabajo no verificado</span></p>
+      <p>En lanzamiento: <strong>{capacity.launching}</strong><span className="block text-muted-foreground">Sin recibo final</span></p>
+      <p>Por conciliar: <strong>{capacity.unconfirmed}</strong><span className="block text-muted-foreground">No equivale a agente activo</span></p>
+    </div>
     {rows.length>0&&<div className="space-y-2">
       <h4 className="text-xs font-semibold">Plan registrado</h4>
       {rows.map(d=><div key={d.id} className="rounded border border-border bg-background p-2 text-xs">
         <strong>{d.storyId}</strong> · {names[d.agent]} · {statuses[d.status]}
         <p className="break-all text-muted-foreground">{d.name} · repo {d.repoId} · host {d.hostId}{d.worktreeId?` · ${d.worktreeId}`:''}</p>
+        <p className="break-all text-muted-foreground">Rama base registrada: {d.baseBranch}</p>
         {(d.status==='launching'||d.status==='unconfirmed')&&
           <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
             ID de operación (conservar): {d.operationId}
           </p>}
         {d.warning&&<p role="alert" className="text-destructive">{d.warning}</p>}
         {d.status==='unconfirmed'&&<p role="alert" className="mt-1 text-xs text-destructive">
-          Orca no confirmó el lanzamiento. Comprueba primero los worktrees y las sesiones;
-          no borres la historia ni vuelvas a iniciar con otro ID.
+          Evidencia de lanzamiento insuficiente: operación pendiente de conciliación manual.
+          No implica agente activo ni autoriza nuevos intentos. Conserva el ID y comprueba el registro duradero, los worktrees y las sesiones.
         </p>}
       </div>)}
     </div>}
@@ -207,7 +213,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones a {Math.min(slots,pending.length)} agente(s)
       </button>
     </>}
-    {running>0&&<p className="flex items-start gap-2 text-xs text-muted-foreground">
+    {capacity.held>0&&<p className="flex items-start gap-2 text-xs text-muted-foreground">
       <ShieldAlert className="h-4 w-4 shrink-0"/>
       Para liberar cupos hará falta conciliación con sesiones vivas y revisión; cerrar una pestaña no equivale a completar el trabajo.
     </p>}
