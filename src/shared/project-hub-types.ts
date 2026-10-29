@@ -36,7 +36,9 @@ export function isHubDocument(d: unknown): d is HubDocument {
     !str(d.updatedAt,80) || !isRecord(d.blueprint) || !isRecord(d.architecture) ||
     !Array.isArray(d.items) || d.items.length>300 || !Array.isArray(d.approvals) || d.approvals.length>100)
     return false
-  if (!['idea','problem','users','success'].every(k=>str(d.blueprint[k],2500))) return false
+  // Keep a stable narrowed reference across the array callback (TS18046).
+  const blueprint = d.blueprint
+  if (!['idea','problem','users','success'].every(k=>str(blueprint[k],2500))) return false
   const evidence = d.qualityEvidence
   if(evidence!==undefined) {
     if(!isRecord(evidence) || Object.keys(evidence).length>40) return false
