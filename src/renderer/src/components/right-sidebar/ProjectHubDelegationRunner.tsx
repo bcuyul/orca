@@ -181,10 +181,10 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
     <p className="flex items-center gap-1 text-xs text-muted-foreground">
       <GitBranch className="h-3.5 w-3.5"/> Rama seleccionada: {branch.replace(/^refs\/heads\//,'')} · Cupos retenidos: {capacity.held}/{limit}
     </p>
-    <div className="grid grid-cols-3 gap-2 rounded border border-border p-2 text-xs" aria-label="Estado de delegaciones en este repositorio y host">
-      <p>Inicios confirmados: <strong>{capacity.launched}</strong><span className="block text-muted-foreground">Trabajo no verificado</span></p>
-      <p>En lanzamiento: <strong>{capacity.launching}</strong><span className="block text-muted-foreground">Sin recibo final</span></p>
-      <p>Por conciliar: <strong>{capacity.unconfirmed}</strong><span className="block text-muted-foreground">No equivale a agente activo</span></p>
+    <div className="space-y-1 rounded border border-border p-2 text-xs" aria-label="Estado de delegaciones en este repositorio y host">
+      <p>Inicios confirmados: <strong>{capacity.launched}</strong> <span className="text-muted-foreground">· trabajo no verificado</span></p>
+      <p>En lanzamiento: <strong>{capacity.launching}</strong> <span className="text-muted-foreground">· sin recibo final</span></p>
+      <p>Por conciliar: <strong>{capacity.unconfirmed}</strong> <span className="text-muted-foreground">· no equivale a agente activo</span></p>
     </div>
     {rows.length>0&&<div className="space-y-2">
       <h4 className="text-xs font-semibold">Plan registrado</h4>
