@@ -6,7 +6,7 @@ export type HubCliAgent = (typeof HUB_CLI_AGENTS)[number]
 export type HubDelegationStatus = 'planned'|'launching'|'launched'|'unconfirmed'
 export type HubDelegation = {
   id:string; storyId:string; agent:HubCliAgent; reviewer:HubCliAgent|'human'
-  operationId:string; name:string; baseBranch:string; status:HubDelegationStatus
+  operationId:string; name:string; baseBranch:string; repoId:string; hostId:string; status:HubDelegationStatus
   createdAt:string; worktreeId?:string; terminalHandle?:string; warning?:string
 }
 const record=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x)
@@ -24,6 +24,7 @@ export function isHubDelegationList(input:unknown, storyIds:ReadonlySet<string>)
       !(agent(row.reviewer)||row.reviewer==='human')||row.reviewer===row.agent||
       !word(row.operationId,46)||!OP_ID.test(row.operationId)||operations.has(row.operationId)||
       !word(row.name,80)||!/^ph-[a-z0-9-]+$/.test(row.name)||
+      !word(row.repoId,200)||!word(row.hostId,120)||
       !word(row.baseBranch,240)||row.baseBranch.startsWith('-')||
       !word(row.createdAt,80)||
       !['planned','launching','launched','unconfirmed'].includes(String(row.status))||
@@ -46,7 +47,7 @@ export function isHubDelegationTransition(previous:HubDelegation[], next:HubDele
   return previous.every((before,i)=>{
     const after=next[i]
     if(!after||!allowed[before.status].includes(after.status))return false
-    for(const key of ['id','storyId','agent','reviewer','operationId','name','baseBranch','createdAt'] as const)
+    for(const key of ['id','storyId','agent','reviewer','operationId','name','baseBranch','repoId','hostId','createdAt'] as const)
       if(before[key]!==after[key])return false
     if(before.worktreeId&&before.worktreeId!==after.worktreeId)return false
     if(before.terminalHandle&&before.terminalHandle!==after.terminalHandle)return false
@@ -57,13 +58,15 @@ export function isHubDelegationTransition(previous:HubDelegation[], next:HubDele
 /** The caller must mint operation IDs once and persist this plan before dispatching anything. */
 export function prepareHubDelegation(input:{
   document:HubDocument;storyIds:string[];agent:HubCliAgent;reviewer:HubCliAgent|'human'
-  baseBranch:string;now:string;mint:()=>{id:string;operationId:string}
+  baseBranch:string;repoId:string;hostId:string;now:string;mint:()=>{id:string;operationId:string}
 }):HubDocument{
-  const {document,storyIds,agent:worker,reviewer,baseBranch,now,mint}=input
+  const {document,storyIds,agent:worker,reviewer,baseBranch,repoId,hostId,now,mint}=input
   if(!agent(worker)||!(agent(reviewer)||reviewer==='human')||worker===reviewer)
     throw new Error('Choose a separate reviewer')
   if(storyIds.length<1||storyIds.length>10||new Set(storyIds).size!==storyIds.length)
     throw new Error('Select 1–10 distinct stories')
+  if(!repoId||repoId.length>200||!hostId||hostId.length>120)
+    throw new Error('Missing scoped repository/host identity')
   const branch=baseBranch.replace(/^refs\/heads\//,'')
   if(!branch||branch.length>240||branch.startsWith('-'))throw new Error('Invalid base branch')
   const previous=document.delegations??[]
@@ -75,7 +78,7 @@ export function prepareHubDelegation(input:{
     const tokens=mint()
     const name='ph-'+storyId.toLowerCase().replace(/[^a-z0-9-]/g,'-').slice(0,35)+'-'+tokens.id.slice(-6)
     return {id:tokens.id,storyId,agent:worker,reviewer,operationId:tokens.operationId,
-      name,baseBranch:branch,status:'planned' as const,createdAt:now}
+      name,baseBranch:branch,repoId,hostId,status:'planned' as const,createdAt:now}
   })
   const delegations=[...previous,...created]
   if(!isHubDelegationList(delegations,new Set(document.items.map(x=>x.id))))
