@@ -84,6 +84,15 @@ Get-Command opencode -ErrorAction SilentlyContinue | Select-Object Name, Source
 - If neither branch nor worktree is present, this **suggests** failure before workspace creation, but does not prove that every host-side effect was absent. Capture relevant sanitized runtime error logs/host receipt before recovery.
 - The current PR #4 has **no supported UI recovery** for `unconfirmed`. Keep the slot occupied until a host-owned reconciliation flow is implemented. A new story or new operation is not a substitute for reconciling the original one.
 
+A privacy-safe runtime diagnostic was added in `agent-launch.ts` for a **future** failure:
+`[agent-launch] launch execution rejected` with `operationId`, `agent`, `targetKind`,
+`stage` (`intent_resolved`, `worktree_create`, `mode_settle`, `surface_create`),
+`errorName`, optional strict-format `errorCode`, and `ptyDispatchAbsenceProven`.
+It is written to the **Electron main process console**, not the terminal daemon's `daemon.log`.
+It does not include prompt text, arbitrary error messages or exception stacks. Its stage
+must **not** be interpreted as definitive evidence that a Git operation did not occur.
+The instrumentation is not retroactive: an earlier PH-001 `unconfirmed` remains so.
+
 For future diagnostics, log host-side classified failure stage and stable IDs without leaking CLI environment variables or secrets. See `src/main/runtime/rpc/methods/agent-launch.ts` and `agent-launch-replay.ts`. Avoid blindly swapping to `agent.launch`: both endpoints may use the same replay-safe path, while `agent.launchReplay` intentionally fails closed on uncertain side effects.
 
 ## Incremental roadmap (full plan in ROADMAP_ORQUESTACION_AGENTES.md)
