@@ -8,7 +8,7 @@
 2. PR #2: `feat/project-hub-native-core` (base: rama PR #1) — persistencia en `userData`, IPC seguro y pestaña React nativa.
 3. PR #3: `feat/project-hub-design-views` (base: rama PR #2) — siete pantallas basadas en los flujos del diseño recibido, importador JSON, Mermaid, handoff manual y evidencias QA.
 
-No fusionar directamente a `main` sin testear la aplicación real. La rama #3 incluye el código de la #2 creado antes de los últimos arreglos; al apilar/fusionar se debe reconciliar esa diferencia. Los tres PRs deben revisarse de abajo hacia arriba.
+No fusionar directamente a `main` sin testear la aplicación real. La rama #3 fue rebasada sobre el head actualizado de #2; el diff del PR #3 contiene solo su propia capa de cambios. Los tres PRs deben revisarse de abajo hacia arriba.
 
 ## Arquitectura real
 
@@ -70,7 +70,7 @@ La transición de fase también es comprobada en el proceso principal: +1 fase, 
 ## Verificación antes del merge
 
 ```powershell
-pnpm test:node src/shared/project-hub-types.test.ts
+pnpm test:node src/shared/project-hub-project-id.test.ts src/shared/project-hub-types.test.ts
 pnpm test:node src/main/project-hub/project-hub-store.test.ts
 pnpm typecheck
 ```
