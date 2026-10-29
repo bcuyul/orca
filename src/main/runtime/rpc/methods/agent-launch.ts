@@ -238,7 +238,7 @@ async function executeAdmittedAgentLaunch(
       stage: diagnosticStage,
       errorName: diagnosticErrorName,
       ...(diagnosticErrorCode ? { errorCode: diagnosticErrorCode } : {}),
-      terminalSpawnDispatched: !terminalSpawn.failedBeforeDispatch(error)
+      ptyDispatchAbsenceProven: terminalSpawn.failedBeforeDispatch(error)
     })
     if (view.early?.closedByUser()) {
       await settleLaunchWhoseTabWasClosed(context, view.early, admission)
