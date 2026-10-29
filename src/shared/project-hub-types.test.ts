@@ -22,6 +22,35 @@ describe('Project Hub document contracts',()=>{
     expect(doc.phase).toBe(1)
     expect(isHubDocument(next)).toBe(true)
   })
+  it('requires five non-whitespace characters for each QA note at the shared boundary',()=>{
+    const base=emptyProjectHub('repo:qa-limits')
+    const valid={status:'verified' as const,note:'valid',at:new Date().toISOString()}
+    const key='1:ci'
+    for(const note of ['',' ','abcd','  abcd  ']){
+      const doc={...base,qualityEvidence:{[key]:{...valid,note}}}
+      expect(isHubDocument(doc)).toBe(false)
+      expect(hasHubPhaseEvidence(doc)).toBe(false)
+    }
+    expect(isHubDocument({...base,qualityEvidence:{[key]:valid}})).toBe(true)
+    expect(isHubDocument({...base,qualityEvidence:{[key]:{...valid,note:'a'.repeat(501)}}})).toBe(false)
+    expect(isHubDocument({...base,qualityEvidence:{[key]:{...valid,status:'unknown'}}})).toBe(false)
+    expect(isHubDocument({...base,qualityEvidence:{[key]:{...valid,status:'not-applicable'}}})).toBe(true)
+  })
+  it('requires a complete sequential audit trail and meaningful approval reason',()=>{
+    const base=emptyProjectHub('repo:approval')
+    const at=new Date().toISOString()
+    const qualityEvidence=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[
+      '1:'+key,{status:'verified' as const,note:'Passed manually',at}
+    ]))
+    const ready={...base,qualityEvidence}
+    expect(hasHubPhaseEvidence(ready)).toBe(true)
+    expect(()=>approveHubPhase(ready,'abcd',at)).toThrow(/cinco/)
+    expect(()=>approveHubPhase(ready,'   ',at)).toThrow(/cinco/)
+    const approved=approveHubPhase(ready,'Human approval',at)
+    expect(isHubDocument(approved)).toBe(true)
+    expect(isHubDocument({...approved,approvals:[]})).toBe(false)
+    expect(isHubDocument({...approved,approvals:[{...approved.approvals[0],note:'x'}]})).toBe(false)
+  })
   it('rejects duplicate items, invalid phases, invalid architecture edges',()=>{
     const doc=emptyProjectHub('repo:123')
     expect(isHubDocument({...doc,phase:11})).toBe(false)
