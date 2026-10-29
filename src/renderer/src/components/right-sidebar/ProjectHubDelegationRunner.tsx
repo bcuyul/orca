@@ -9,6 +9,7 @@ import {
   type HubCliAgent, type HubDelegation
 } from '../../../../shared/project-hub-delegation'
 import { createStructuredAgentSessionOperationId } from '../../../../shared/structured-agent-session-mutation'
+import { createBrowserUuid } from '@/lib/browser-uuid'
 
 type Props={
   document:HubDocument
@@ -51,26 +52,29 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,
         baseBranch:branch,repoId,hostId,now:new Date().toISOString(),
         mint:()=>{
-          const uuid=crypto.randomUUID().replaceAll('-','').toLowerCase()
-          return {id:'hub-'+uuid,operationId:createStructuredAgentSessionOperationId(()=>crypto.randomUUID())}
+          const uuid=createBrowserUuid().replaceAll('-','').toLowerCase()
+          return {id:`hub-${uuid}`,operationId:createStructuredAgentSessionOperationId(createBrowserUuid)}
         }})
       if(await onSave(next)){setSelected([]);setApproved(false);setNotice('Lote preparado y guardado. Todavía no se inició ningún agente.')}
-    }catch(e){setNotice('No se pudo preparar: '+String(e))}
+    }catch(e){setNotice(`No se pudo preparar: ${String(e)}`)}
   }
 
   /** Every iteration awaits the durable reserve and the host receipt; worker processes themselves run in parallel. */
   async function launchBatch():Promise<void>{
-    if(!approved||!local||busy||slots<=0)return
+    if(!approved||!local||busy||slots<=0){return}
     setBusy(true);setNotice('')
     const targetProject=document.projectId
+    const targetRepo=repoId
+    const targetHost=hostId
     let created=0
     try{
       for(const planned of pending.slice(0,slots)){
         const fresh=await window.api.projectHub.read(targetProject)
         const current=fresh.delegations?.find(x=>x.id===planned.id)
         if(!current||current.status!=='planned'||current.operationId!==planned.operationId||
-           current.repoId!==repoId||current.hostId!==hostId)
+           current.repoId!==targetRepo||current.hostId!==targetHost){
           throw new Error('Plan modified by another window. Reload before launching.')
+        }
         const reserved:HubDocument={...fresh,delegations:(fresh.delegations??[]).map(row=>
           row.id===current.id?{...row,status:'launching' as const}:row)}
         const checkpoint=await window.api.projectHub.save({
@@ -98,8 +102,9 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         }catch(e){failure=String(e)}
         const latest=await window.api.projectHub.read(targetProject)
         const reservedRecord=latest.delegations?.find(x=>x.id===current.id)
-        if(reservedRecord?.status!=='launching'||reservedRecord.operationId!==current.operationId)
+        if(reservedRecord?.status!=='launching'||reservedRecord.operationId!==current.operationId){
           throw new Error('Launch reservation changed; inspect Orca sessions before retrying')
+        }
         const receipt=result?.ok?parseHubLaunchReceipt(result.result):null
         const payload=result?.ok&&typeof result.result==='object'&&result.result!==null
           ? result.result as {prompt?:{outcome?:string}}:null
@@ -117,12 +122,13 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
           expectedRevision:latest.revision
         })
         onUpdated(committed)
-        if(outcome.status==='unconfirmed')
+        if(outcome.status==='unconfirmed'){
           throw new Error('At least one launch is unconfirmed. Inspect the Orca session before proceeding.')
+        }
         created++
       }
-      setNotice(created+' agente(s) CLI iniciado(s) en worktrees nuevos. No se han verificado tareas ni CI.')
-    }catch(e){setNotice('Lote detenido después de '+created+' confirmaciones: '+String(e))}
+      setNotice(`${created} agente(s) CLI iniciado(s) en worktrees nuevos. No se han verificado tareas ni CI.`)
+    }catch(e){setNotice(`Lote detenido después de ${created} confirmaciones: ${String(e)}`)}
     finally{setBusy(false);setApproved(false)}
   }
 
@@ -146,7 +152,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
     <div className="grid grid-cols-2 gap-2">
       <label className="text-xs">Ejecutor CLI
         <select className="mt-1 w-full rounded border border-border bg-background p-2" value={worker}
-          disabled={busy} onChange={e=>{const next=e.target.value as HubCliAgent;setWorker(next);if(reviewer===next)setReviewer('human')}}>
+          disabled={busy} onChange={e=>{const next=e.target.value as HubCliAgent;setWorker(next);if(reviewer===next){setReviewer('human')}}}>
           {HUB_CLI_AGENTS.map(a=><option key={a} value={a}>{names[a]}</option>)}
         </select>
       </label>
@@ -175,7 +181,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       <h4 className="text-xs font-semibold">Plan registrado</h4>
       {rows.map(d=><div key={d.id} className="rounded border border-border bg-background p-2 text-xs">
         <strong>{d.storyId}</strong> · {names[d.agent]} · {statuses[d.status]}
-        <p className="break-all text-muted-foreground">{d.name} · repo {d.repoId} · host {d.hostId}{d.worktreeId?' · '+d.worktreeId:''}</p>
+        <p className="break-all text-muted-foreground">{d.name} · repo {d.repoId} · host {d.hostId}{d.worktreeId?` · ${d.worktreeId}`:''}</p>
         {d.warning&&<p role="alert" className="text-destructive">{d.warning}</p>}
       </div>)}
     </div>}
