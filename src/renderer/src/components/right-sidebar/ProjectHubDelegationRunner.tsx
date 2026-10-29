@@ -133,7 +133,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   }
 
   return <section className="space-y-3 rounded-lg border border-border bg-card p-3">
-    <h3 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4"/> Central CLI · Delegación tipo Hermes</h3>
+    <h3 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4"/> Centro de ejecución</h3>
     <p className="text-xs text-muted-foreground">
       Selecciona historias, crea un plan persistente y lanza los CLI en worktrees de Orca.
       Los estados reflejan el lanzamiento, no la terminación de los agentes.
