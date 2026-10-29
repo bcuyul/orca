@@ -12,7 +12,7 @@ Hermes Agent documents the `delegate_task` architecture as a parent orchestrator
 
 ## Exact scope implemented
 
-- In **Project Hub → Orquestación**, the **Centro de ejecución** lets users select 1–10 eligible stories, choose a CLI implementer and a *different* proposed reviewer, select a concurrency ceiling (1–3), and save a plan.
+- In **Project Hub → Orquestación**, the **Centro de ejecución** lets users select 1–10 eligible stories, choose a CLI implementer and a *different* proposed reviewer, select a concurrency ceiling (1–3), and save a plan. After approval, Orca creates a new terminal CLI session per story and automatically submits its initial instructions. It does **not** send messages to previously open chats.
 - Every task has a durable, immutable `operationId`, bound to a **specific Orca Project.id, repoId, hostId, storyId and baseBranch** before any worktree is created.
 - The user must tick a launch authorization and click **Lanzar**. Orca's own `agent.launchReplay` performs the creation of a **fresh Git worktree + terminal CLI + prompt**, with `surface:'terminal'` and `presentation:'background'`.
 - The coordinator logic in this slice lives in the UI, launching at most the currently available slots. The CLI agents work in parallel once launched; the RPC launch requests are serialized to preserve an auditable record.
