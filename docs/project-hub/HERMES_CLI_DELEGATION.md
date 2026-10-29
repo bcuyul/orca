@@ -6,11 +6,13 @@ Hermes Agent documents the `delegate_task` architecture as a parent orchestrator
 - https://hermes-agent.nousresearch.com/docs/user-guide/features/delegation/
 - https://hermes-agent.nousresearch.com/docs/user-guide/profiles
 
+**Product UI: Project Hub → Orquestación → Centro de ejecución.** See [the complete roadmap](./ROADMAP_ORQUESTACION_AGENTES.md).
+
 **This PR does not embed Hermes or reimplement `delegate_task`.** It uses the already-existing Orca `agent.launchReplay` and managed-worktree implementation to launch **OpenCode / Codex / Claude Code / Hermes CLIs**, using the agent's installed local credentials and subscriptions. This is an adaptation of Hermes' model, not feature parity.
 
 ## Exact scope implemented
 
-- In **Project Hub → Delegación**, a new **Central CLI** lets users select 1–10 eligible stories, choose a CLI implementer and a *different* proposed reviewer, select a concurrency ceiling (1–3), and save a plan.
+- In **Project Hub → Orquestación**, the **Centro de ejecución** lets users select 1–10 eligible stories, choose a CLI implementer and a *different* proposed reviewer, select a concurrency ceiling (1–3), and save a plan.
 - Every task has a durable, immutable `operationId`, bound to a **specific Orca Project.id, repoId, hostId, storyId and baseBranch** before any worktree is created.
 - The user must tick a launch authorization and click **Lanzar**. Orca's own `agent.launchReplay` performs the creation of a **fresh Git worktree + terminal CLI + prompt**, with `surface:'terminal'` and `presentation:'background'`.
 - The coordinator logic in this slice lives in the UI, launching at most the currently available slots. The CLI agents work in parallel once launched; the RPC launch requests are serialized to preserve an auditable record.
@@ -62,7 +64,7 @@ pnpm dev --worktree-profile
 
 Do **not** merge these PRs into `main` or upstream based on plan-only tests. Orion/Orca host support, cross-window crashes, remote hosting, security review and UI regressions remain required.
 
-## Roadmap to Hermes-like parity
+## Incremental roadmap (full plan in ROADMAP_ORQUESTACION_AGENTES.md)
 
 1. **Orca-owned execution bridge:** move launch+receipt persistence into a host-side saga with durable reconciliation and host capability negotiation.
 2. **Live central:** map `storyId → runId/taskId → worktreeId → terminal handle → agent identity → evidence` using Orca orchestration DB, agent status and worktree metadata.
