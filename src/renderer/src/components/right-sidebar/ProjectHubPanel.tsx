@@ -63,13 +63,14 @@ export default function ProjectHubPanel(): React.JSX.Element {
   },[projectId])
 
   const shown=doc?.projectId===projectId ? doc : null
-  async function save(next:HubDocument):Promise<void> {
-    if(!projectId||!shown||next.projectId!==projectId||busy) return
+  async function save(next:HubDocument):Promise<boolean> {
+    if(!projectId||!shown||next.projectId!==projectId||busy) return false
     setBusy(true);setError('')
     try {
       const saved=await window.api.projectHub.save({projectId,document:next,expectedRevision:shown.revision})
       setDoc(current=>current?.projectId===saved.projectId ? saved : current)
-    } catch(e) {setError(String(e))}
+      return true
+    } catch(e) {setError(String(e));return false}
     finally {setBusy(false)}
   }
   async function addStory():Promise<void>{
@@ -77,8 +78,9 @@ export default function ProjectHubPanel(): React.JSX.Element {
     const nextId='PH-'+String(Math.max(0,...shown.items.map(i=>Number(/^PH-(\d+)$/.exec(i.id)?.[1]??0)))+1).padStart(3,'0')
     const item:HubItem={id:nextId,title:itemTitle.trim().slice(0,160),type:'story',status:'backlog',
       phase:shown.phase,source:'local',acceptance:itemAcceptance.slice(0,2000),description:''}
-    await save({...shown,items:[...shown.items,item]})
-    setItemTitle('');setItemAcceptance('')
+    if(await save({...shown,items:[...shown.items,item]})) {
+      setItemTitle('');setItemAcceptance('')
+    }
   }
   if(!projectId) return <div className="p-4 text-sm text-muted-foreground">
     Selecciona un worktree perteneciente a un proyecto de Orca para abrir Project Hub.
@@ -120,7 +122,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
             Confirmo que revisé las evidencias y asumo esta aprobación manual</label>
           <button type="button" disabled={busy||!approveChecked||!approvalNote.trim()||shown.phase>=10}
             className="mt-3 flex items-center gap-2 rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40"
-            onClick={()=>{void save(approveHubPhase(shown,approvalNote,new Date().toISOString())).then(()=>{setApprovalNote('');setApproveChecked(false)})}}>
+            onClick={()=>{void save(approveHubPhase(shown,approvalNote,new Date().toISOString())).then(ok=>{if(ok){setApprovalNote('');setApproveChecked(false)}})}}>
             <ShieldCheck className="h-4 w-4"/> Registrar aprobación y avanzar
           </button>
           <div className="mt-3 space-y-1 text-xs text-muted-foreground">{shown.approvals.slice(-4).reverse().map(a=>
