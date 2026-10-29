@@ -49,6 +49,24 @@ describe('ProjectHubStore',()=>{
     expect(()=>store.save(projectId,{...next,approvals:[]},2)).toThrow()
     expect(()=>store.save(projectId,{...next,qualityEvidence:{}},2)).toThrow(/evidence/)
   })
+  it('rejects inconsistent QA notes before writing and preserves the existing revision',()=>{
+    const store=new ProjectHubStore(root)
+    const projectId='repo:qa-notes'
+    const initial=store.save(projectId,emptyProjectHub(projectId),0)
+    const at=new Date().toISOString()
+    const template={status:'verified' as const,note:'checked',at}
+    const notes=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>['1:'+key,template]))
+    expect(()=>store.save(projectId,{...initial,qualityEvidence:{
+      ...notes,'1:ci':{...template,note:'ok'}
+    }},1)).toThrow(/Invalid/)
+    expect(store.read(projectId).revision).toBe(1)
+    const valid=store.save(projectId,{...initial,qualityEvidence:notes},1)
+    expect(valid.revision).toBe(2)
+    expect(()=>store.save(projectId,{...valid,phase:2,approvals:[
+      {from:1,to:2,note:'no',at}
+    ]},2)).toThrow(/Invalid/)
+    expect(store.read(projectId).phase).toBe(1)
+  })
   it('fails closed if existing JSON is corrupted',()=>{
     const store=new ProjectHubStore(root)
     const path=hubFilePath(root,'repo:one')
