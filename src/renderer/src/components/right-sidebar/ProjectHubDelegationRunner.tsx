@@ -186,7 +186,15 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       {rows.map(d=><div key={d.id} className="rounded border border-border bg-background p-2 text-xs">
         <strong>{d.storyId}</strong> · {names[d.agent]} · {statuses[d.status]}
         <p className="break-all text-muted-foreground">{d.name} · repo {d.repoId} · host {d.hostId}{d.worktreeId?` · ${d.worktreeId}`:''}</p>
+        {(d.status==='launching'||d.status==='unconfirmed')&&
+          <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+            ID de operación (conservar): {d.operationId}
+          </p>}
         {d.warning&&<p role="alert" className="text-destructive">{d.warning}</p>}
+        {d.status==='unconfirmed'&&<p role="alert" className="mt-1 text-xs text-destructive">
+          Orca no confirmó el lanzamiento. Comprueba primero los worktrees y las sesiones;
+          no borres la historia ni vuelvas a iniciar con otro ID.
+        </p>}
       </div>)}
     </div>}
     {pending.length>0&&<>
