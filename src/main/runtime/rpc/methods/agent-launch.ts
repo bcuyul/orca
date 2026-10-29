@@ -68,6 +68,8 @@ type ReplaySafeLaunch = {
   terminalSpawn: TerminalSpawnDispatch
   /** Queue provisional surface/prompt recording without awaiting it; ordered ledger transactions keep final settlement after it. */
   recordSurface: (provisional: AgentLaunchResult) => void
+  /** Diagnostics only: a stage marker, not an assertion about side effects. */
+  onStage?: (stage: 'worktree_create' | 'mode_settle' | 'surface_create') => void
 }
 
 async function runAgentLaunch(
@@ -90,6 +92,7 @@ async function runAgentLaunch(
       view
     ),
     workspaces: agentLaunchWorkspaceFactory(context, intent.agent),
+    ...(replaySafe?.onStage ? { onStage: replaySafe.onStage } : {}),
     // The tab is shown as it is published, not after a prompt that can take a minute to land.
     onSurfacePublished: (surface) => {
       view.early?.surfacePublished(surface)
@@ -205,15 +208,38 @@ async function executeAdmittedAgentLaunch(
     throw error
   }
   const terminalSpawn = trackTerminalSpawnDispatch()
+  // Do not infer side-effect absence from the stage; git/PTY operations may be partially applied.
+  let diagnosticStage: 'intent_resolved' | 'worktree_create' | 'mode_settle' | 'surface_create' =
+    'intent_resolved'
   let result: AgentLaunchResult
   try {
     result = await runAgentLaunch(resolved, context, view, {
       attachOperationId: admission.attachOperationId,
       callerKey: admission.callerKey,
       terminalSpawn,
+      onStage: (stage) => {
+        diagnosticStage = stage
+      },
       recordSurface: (provisional) => void settleQuietly(admission.record(provisional))
     })
   } catch (error) {
+    // An error message or stack can include paths, prompts or provider secrets. Log only
+    // stable structural fields. This is a diagnostic breadcrumb, never a retry permit.
+    const diagnosticErrorName = error instanceof Error ? error.name : typeof error
+    const diagnosticErrorCode =
+      typeof error === 'object' && error !== null && 'code' in error &&
+      typeof error.code === 'string' && /^[A-Za-z0-9_.-]{1,100}$/.test(error.code)
+        ? error.code
+        : undefined
+    console.warn('[agent-launch] launch execution rejected', {
+      operationId: params.operationId,
+      agent: params.agent,
+      targetKind: resolved.intent.target.kind,
+      stage: diagnosticStage,
+      errorName: diagnosticErrorName,
+      ...(diagnosticErrorCode ? { errorCode: diagnosticErrorCode } : {}),
+      terminalSpawnDispatched: !terminalSpawn.failedBeforeDispatch(error)
+    })
     if (view.early?.closedByUser()) {
       await settleLaunchWhoseTabWasClosed(context, view.early, admission)
     }
