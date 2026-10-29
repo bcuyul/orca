@@ -45,7 +45,7 @@ export function isHubDocument(d: unknown): d is HubDocument {
     for(const [key,value] of Object.entries(evidence)) {
       if(!/^(?:[1-9]|10):(acceptance|flow|ci|owner)$/.test(key)||!isRecord(value)||
         !['verified','not-applicable'].includes(String(value.status))||
-        !str(value.note,500)||!value.note.trim()||!str(value.at,80)) return false
+        !str(value.note,500)||value.note.trim().length<5||!str(value.at,80)) return false
     }
   }
   const a=d.architecture
@@ -69,22 +69,25 @@ export function isHubDocument(d: unknown): d is HubDocument {
   for (const approval of d.approvals) {
     if (!isRecord(approval)||!phase(approval.from)||!phase(approval.to)||
       approval.to!==approval.from+1||approval.from!==last||
-      !str(approval.note,500)||!approval.note.trim()||!str(approval.at,80)) return false
+      !str(approval.note,500)||approval.note.trim().length<5||!str(approval.at,80)) return false
     last=approval.to
   }
-  return last<=d.phase
+  // An approved phase must have a complete 1→2→... chain; otherwise the
+  // UI and the stored audit trail disagree about which gates were passed.
+  return last===d.phase
 }
 export const HUB_GATE_KEYS = ['acceptance','flow','ci','owner'] as const
 export function hasHubPhaseEvidence(doc: HubDocument): boolean {
   return HUB_GATE_KEYS.every(key=>{
     const value=doc.qualityEvidence?.[doc.phase+':'+key]
-    return value && value.note.trim().length>=5
+    return value && (value.status==='verified'||value.status==='not-applicable') &&
+      value.note.trim().length>=5
   })
 }
 export function approveHubPhase(doc: HubDocument, note: string, at: string): HubDocument {
   if (doc.phase>=10) throw new Error('La fase 10 es la última.')
   if (!hasHubPhaseEvidence(doc)) throw new Error('Faltan evidencias manuales de QA para esta fase.')
-  if (!note.trim() || note.length>500) throw new Error('Se requiere evidencia de aprobación.')
+  if (note.trim().length<5 || note.length>500) throw new Error('La aprobación requiere al menos cinco caracteres.')
   if (!/^\d{4}-\d\d-\d\dT/.test(at)) throw new Error('Fecha inválida.')
   return {...doc, phase:doc.phase+1,
     approvals:[...doc.approvals,{from:doc.phase,to:doc.phase+1,note:note.trim(),at}]}
