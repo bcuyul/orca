@@ -44,7 +44,7 @@ export function ProjectHubJiraImport({doc,busy,onSave}: Props): React.JSX.Elemen
   return <section className="rounded-lg border border-border bg-card p-3">
     <h3 className="mb-2 text-sm font-semibold">Importar JSON de Jira</h3>
     <p className="mb-2 text-xs text-muted-foreground">Solo lectura: acepta issues[] e ignora IDs repetidos. No sincroniza Jira.</p>
-    <textarea value={json} onChange={e=>setJson(e.target.value)} rows={3}
+    <textarea value={json} onChange={e=>setJson(e.target.value)} rows={3} disabled={busy}
       placeholder='{"issues":[{"key":"DEMO-1","fields":{"summary":"Historia"}}]}' className={inputClass}/>
     <button type="button" onClick={()=>void importJson()} disabled={busy||!json.trim()} className={'mt-2 '+secondaryClass}>Importar tickets</button>
     {message && <p role="status" className="mt-2 text-xs text-muted-foreground">{message}</p>}
@@ -92,13 +92,13 @@ export function ProjectHubArchitecture({doc,busy,onSave}: Props): React.JSX.Elem
     </section>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <label className="block text-xs">Componentes — Nombre | tipo
-        <textarea rows={4} value={nodes} onChange={e=>setNodes(e.target.value)} className={'mt-1 '+inputClass}/>
+        <textarea rows={4} value={nodes} onChange={e=>setNodes(e.target.value)} disabled={busy} className={'mt-1 '+inputClass}/>
       </label>
       <label className="block text-xs">Conexiones — Origen → Destino
-        <textarea rows={3} value={edges} onChange={e=>setEdges(e.target.value)} className={'mt-1 '+inputClass}/>
+        <textarea rows={3} value={edges} onChange={e=>setEdges(e.target.value)} disabled={busy} className={'mt-1 '+inputClass}/>
       </label>
       <label className="block text-xs">Decisiones / ADR
-        <textarea rows={3} value={notes} onChange={e=>setNotes(e.target.value)} className={'mt-1 '+inputClass}/>
+        <textarea rows={3} value={notes} onChange={e=>setNotes(e.target.value)} disabled={busy} className={'mt-1 '+inputClass}/>
       </label>
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={actionClass} onClick={()=>void onSave({...doc,architecture:graph})}>Guardar arquitectura</button>
@@ -227,18 +227,18 @@ export function ProjectHubQuality({doc,busy,onSave}: Props): React.JSX.Element {
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h3 className="text-sm font-semibold">Registrar evidencia</h3>
       <label className="block text-xs">Comprobación
-        <select value={gate} onChange={e=>setGate(e.target.value as typeof gate)} className={'mt-1 '+inputClass}>
+        <select value={gate} onChange={e=>setGate(e.target.value as typeof gate)} disabled={busy} className={'mt-1 '+inputClass}>
           {keys.map(key=><option key={key} value={key}>{names[key]}</option>)}
         </select>
       </label>
       <label className="block text-xs">Resultado declarado
-        <select value={status} onChange={e=>setStatus(e.target.value as typeof status)} className={'mt-1 '+inputClass}>
+        <select value={status} onChange={e=>setStatus(e.target.value as typeof status)} disabled={busy} className={'mt-1 '+inputClass}>
           <option value="verified">Verificado manualmente</option>
           <option value="not-applicable">No aplica (requiere justificación)</option>
         </select>
       </label>
       <label className="block text-xs">Evidencia / referencia / justificación
-        <textarea rows={3} maxLength={500} value={note} onChange={e=>setNote(e.target.value)}
+        <textarea rows={3} maxLength={500} value={note} onChange={e=>setNote(e.target.value)} disabled={busy}
           placeholder="Referencia al resultado o motivo por el que no aplica" className={'mt-1 '+inputClass}/>
       </label>
       <button type="button" disabled={busy||note.trim().length<5} className={actionClass} onClick={()=>void recordEvidence()}>
