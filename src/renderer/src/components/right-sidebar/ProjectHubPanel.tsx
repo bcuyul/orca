@@ -4,6 +4,7 @@ import { ProjectHubJiraImport, ProjectHubArchitecture, ProjectHubDelegation, Pro
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
+import { resolveHubProjectId } from '../../../../shared/project-hub-project-id'
 import {
   PROJECT_HUB_PHASES, PROJECT_HUB_STATUSES, approveHubPhase, hasHubPhaseEvidence,
   type HubDocument, type HubItem, type HubStatus
@@ -15,25 +16,6 @@ const STATUS_LABELS: Record<HubStatus,string> = {
 }
 
 /** Fail closed if the host provides multiple different project owners for a workspace. */
-export function resolveHubProjectId(input: {
-  projectId?: string; repoId: string; hostId?: string
-  projects: readonly { id: string; sourceRepoIds: string[] }[]
-  setups: readonly { projectId: string; repoId: string; hostId: string }[]
-  fallback?: string
-}): string | null {
-  const byId = new Set(input.projects.map(p=>p.id))
-  if(input.projectId && byId.has(input.projectId)) return input.projectId
-  const candidates = new Set(input.setups
-    .filter(s=>s.repoId===input.repoId && (!input.hostId || s.hostId===input.hostId))
-    .map(s=>s.projectId).filter(id=>byId.has(id)))
-  if(candidates.size===1) return Array.from(candidates)[0]
-  if(candidates.size>1) return null
-  const fromRepos=input.projects.filter(p=>p.sourceRepoIds.includes(input.repoId))
-  if(fromRepos.length===1) return fromRepos[0].id
-  if(fromRepos.length>1) return null
-  return input.fallback ?? null
-}
-
 export default function ProjectHubPanel(): React.JSX.Element {
   const worktree=useAppStore(s=>s.activeWorktreeId ? s.getKnownWorktreeById(s.activeWorktreeId) : null)
   const repo=useRepoById(worktree?.repoId??null)
