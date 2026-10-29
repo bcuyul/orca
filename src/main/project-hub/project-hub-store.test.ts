@@ -47,6 +47,7 @@ describe('ProjectHubStore',()=>{
     const next=store.save(projectId,{...initial,phase:2,approvals:[approval],qualityEvidence},1)
     expect(next.phase).toBe(2)
     expect(()=>store.save(projectId,{...next,approvals:[]},2)).toThrow()
+    expect(()=>store.save(projectId,{...next,qualityEvidence:{}},2)).toThrow(/evidence/)
   })
   it('fails closed if existing JSON is corrupted',()=>{
     const store=new ProjectHubStore(root)
