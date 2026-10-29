@@ -35,6 +35,7 @@ describe('Project Hub document contracts',()=>{
     expect(isHubDocument({...base,qualityEvidence:{[key]:{...valid,note:'a'.repeat(501)}}})).toBe(false)
     expect(isHubDocument({...base,qualityEvidence:{[key]:{...valid,status:'unknown'}}})).toBe(false)
     expect(isHubDocument({...base,qualityEvidence:{[key]:{...valid,status:'not-applicable'}}})).toBe(true)
+    expect(isHubDocument({...base,qualityEvidence:{'2:ci':valid}})).toBe(false)
   })
   it('requires a complete sequential audit trail and meaningful approval reason',()=>{
     const base=emptyProjectHub('repo:approval')
