@@ -14,7 +14,7 @@ const make=()=>{
   let n=0
   const mint=()=>{
     n++
-    return {id:'hub-'+n.toString(16).padStart(32,'0'),operationId:'1793290000000-'+n.toString(16).padStart(32,'0')}
+    return {id:`hub-${n.toString(16).padStart(32,'0')}`,operationId:`1793290000000-${n.toString(16).padStart(32,'0')}`}
   }
   return {doc,mint}
 }
@@ -56,6 +56,8 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
     expect(isHubDelegationTransition(reserved,launched)).toBe(true)
     expect(isHubDelegationTransition(launched,[{...launched[0],worktreeId:'other'}])).toBe(false)
     expect(isHubDelegationList([planned[0],planned[0]],new Set(['PH-001']))).toBe(false)
+    expect(isHubDelegationTransition([],launched)).toBe(false)
+    expect(isHubDelegationList([{...planned[0],id:`hub-${'2'.repeat(32)}`},planned[0]],new Set(['PH-001']))).toBe(false)
   })
   it('validates host receipts and constrains worker prompt',()=>{
     const {doc,mint}=make()
