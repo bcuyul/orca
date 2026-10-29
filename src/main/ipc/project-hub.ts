@@ -4,7 +4,12 @@ import { getProjectIdentityKey } from '../../shared/project-host-setup-projectio
 import { isHubDocument } from '../../shared/project-hub-types'
 import { ProjectHubStore } from '../project-hub/project-hub-store'
 
-export function registerProjectHubHandlers(store: Store, trustedWindowId: number | null): void {
+let trustedWindowId: number | null = null
+
+/** Refresh on desktop window recreation; never retain a stale renderer authority. */
+export function setTrustedProjectHubRenderer(id: number | null): void { trustedWindowId = id }
+
+export function registerProjectHubHandlers(store: Store): void {
   const db = new ProjectHubStore(app.getPath('userData'))
   const authorize = (sender: number, projectId: unknown): string => {
     if(trustedWindowId===null || sender!==trustedWindowId) throw new Error('Project Hub requires trusted desktop window')
