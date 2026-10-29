@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LayoutDashboard, Plus, ShieldCheck } from 'lucide-react'
-import { ProjectHubJiraImport, ProjectHubArchitecture, ProjectHubDelegation, ProjectHubQuality, ProjectHubTeam } from './ProjectHubDesignViews'
+import { ProjectHubJiraImport, ProjectHubArchitecture, ProjectHubQuality, ProjectHubTeam } from './ProjectHubDesignViews'
 import ProjectHubDelegationRunner from './ProjectHubDelegationRunner'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
@@ -150,12 +150,9 @@ export default function ProjectHubPanel(): React.JSX.Element {
         <button type="button" disabled={busy} onClick={()=>void save(shown)}
           className="rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40">Guardar blueprint</button>
       </div>}
-      {tab==='delegate'&&<div className="space-y-3">
-        <ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
-          hostId={worktree?.hostId??''} branch={worktree?.branch??''}
-          onSave={save} onUpdated={next=>setDoc(current=>current?.projectId===next.projectId?next:current)}/>
-        <ProjectHubDelegation doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>
-      </div>}
+      {tab==='delegate'&&<ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
+        hostId={worktree?.hostId??''} branch={worktree?.branch??''}
+        onSave={save} onUpdated={next=>setDoc(current=>current?.projectId===next.projectId?next:current)}/>} 
       {tab==='architecture'&&<ProjectHubArchitecture doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
       {tab==='qa'&&<ProjectHubQuality doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
       {tab==='team'&&<ProjectHubTeam doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
