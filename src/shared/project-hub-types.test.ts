@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyProjectHub, approveHubPhase, isHubDocument, PROJECT_HUB_PHASES } from './project-hub-types'
+import { emptyProjectHub, approveHubPhase, isHubDocument, hasHubPhaseEvidence, PROJECT_HUB_PHASES } from './project-hub-types'
 describe('Project Hub document contracts',()=>{
   it('has all ten phases',()=>expect(PROJECT_HUB_PHASES).toHaveLength(10))
   it('starts as a valid isolated project document',()=>{
@@ -11,7 +11,13 @@ describe('Project Hub document contracts',()=>{
   it('requires approval and keeps the previous document intact',()=>{
     const doc=emptyProjectHub('repo:123')
     expect(()=>approveHubPhase(doc,'',new Date().toISOString())).toThrow()
-    const next=approveHubPhase(doc,'Validación humana',new Date().toISOString())
+    expect(()=>approveHubPhase(doc,'Validación humana',new Date().toISOString())).toThrow(/evidencias/)
+    const qualityEvidence=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[
+      '1:'+key,{status:'verified' as const,note:'Evidencia manual registrada',at:new Date().toISOString()}
+    ]))
+    const qualified={...doc,qualityEvidence}
+    expect(hasHubPhaseEvidence(qualified)).toBe(true)
+    const next=approveHubPhase(qualified,'Validación humana',new Date().toISOString())
     expect(next.phase).toBe(2)
     expect(doc.phase).toBe(1)
     expect(isHubDocument(next)).toBe(true)

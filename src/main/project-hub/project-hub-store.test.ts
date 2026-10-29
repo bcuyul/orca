@@ -34,6 +34,20 @@ describe('ProjectHubStore',()=>{
     expect(()=>store.save(a.projectId,a,0)).toThrow(/Conflict/)
     expect(()=>store.save('repo:two',a,0)).toThrow(/Invalid/)
   })
+  it('rejects skipped phases and requires append-only approvals with recorded QA evidence',()=>{
+    const store=new ProjectHubStore(root)
+    const projectId='repo:stage'
+    const initial=store.save(projectId,emptyProjectHub(projectId),0)
+    expect(()=>store.save(projectId,{...initial,phase:3},1)).toThrow(/Phase/)
+    const approval={from:1,to:2,note:'Revisión humana',at:new Date().toISOString()}
+    expect(()=>store.save(projectId,{...initial,phase:2,approvals:[approval]},1)).toThrow(/evidence/)
+    const qualityEvidence=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[
+      '1:'+key,{status:'verified' as const,note:'Evidencia revisada',at:new Date().toISOString()}
+    ]))
+    const next=store.save(projectId,{...initial,phase:2,approvals:[approval],qualityEvidence},1)
+    expect(next.phase).toBe(2)
+    expect(()=>store.save(projectId,{...next,approvals:[]},2)).toThrow()
+  })
   it('fails closed if existing JSON is corrupted',()=>{
     const store=new ProjectHubStore(root)
     const path=hubFilePath(root,'repo:one')

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeSecureFile } from '../../shared/secure-file'
-import { emptyProjectHub, isHubDocument, type HubDocument } from '../../shared/project-hub-types'
+import { emptyProjectHub, isHubDocument, hasHubPhaseEvidence, type HubDocument } from '../../shared/project-hub-types'
 
 const LIMIT = 512 * 1024
 export function hubFilePath(root: string, projectId: string): string {
@@ -30,6 +30,18 @@ export class ProjectHubStore {
     const prev=this.read(projectId)
     if(!Number.isSafeInteger(expectedRevision)||prev.revision!==expectedRevision||incoming.revision!==expectedRevision)
       throw new Error('Conflict: reload Project Hub before saving')
+    // Approvals are append-only; phase changes require a gate and one matching record.
+    if (JSON.stringify(incoming.approvals.slice(0,prev.approvals.length))!==JSON.stringify(prev.approvals))
+      throw new Error('Approval history cannot be rewritten')
+    if (incoming.phase===prev.phase) {
+      if (incoming.approvals.length!==prev.approvals.length) throw new Error('Unexpected approval record')
+    } else if (incoming.phase===prev.phase+1) {
+      const last=incoming.approvals[prev.approvals.length]
+      if (incoming.approvals.length!==prev.approvals.length+1 || !last ||
+          last.from!==prev.phase || last.to!==incoming.phase ||
+          !hasHubPhaseEvidence({...incoming,phase:prev.phase}))
+        throw new Error('Phase transition requires matching approval and QA evidence')
+    } else throw new Error('Phase cannot skip or move backwards')
     const next: HubDocument={...incoming,revision:prev.revision+1,updatedAt:new Date().toISOString()}
     const text=JSON.stringify(next,null,2)
     if(Buffer.byteLength(text,'utf8')>LIMIT) throw new Error('Project Hub document too large')

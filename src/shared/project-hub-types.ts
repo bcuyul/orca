@@ -17,12 +17,14 @@ export type HubDocument = {
   items: HubItem[]
   architecture: { nodes: { name: string; kind: string }[]; edges: { from: string; to: string }[]; notes: string }
   approvals: { from: number; to: number; note: string; at: string }[]
+  /** Evidence is explicitly user-attested; never inferred from disconnected CI. */
+  qualityEvidence?: Record<string, { status: 'verified'|'not-applicable'; note: string; at: string }>
   updatedAt: string
 }
 export function emptyProjectHub(projectId: string): HubDocument {
   return { schema: 1, projectId, revision: 0, phase: 1,
     blueprint: { idea:'',problem:'',users:'',success:'' },
-    items: [], architecture: {nodes:[],edges:[],notes:''}, approvals:[], updatedAt:'' }
+    items: [], architecture: {nodes:[],edges:[],notes:''}, approvals:[], qualityEvidence:{}, updatedAt:'' }
 }
 const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x)
 const str = (x: unknown, max: number): x is string => typeof x === 'string' && x.length <= max
@@ -35,6 +37,15 @@ export function isHubDocument(d: unknown): d is HubDocument {
     !Array.isArray(d.items) || d.items.length>300 || !Array.isArray(d.approvals) || d.approvals.length>100)
     return false
   if (!['idea','problem','users','success'].every(k=>str(d.blueprint[k],2500))) return false
+  const evidence = d.qualityEvidence
+  if(evidence!==undefined) {
+    if(!isRecord(evidence) || Object.keys(evidence).length>40) return false
+    for(const [key,value] of Object.entries(evidence)) {
+      if(!/^(?:[1-9]|10):(acceptance|flow|ci|owner)$/.test(key)||!isRecord(value)||
+        !['verified','not-applicable'].includes(String(value.status))||
+        !str(value.note,500)||!value.note.trim()||!str(value.at,80)) return false
+    }
+  }
   const a=d.architecture
   if (!Array.isArray(a.nodes) || a.nodes.length>30 || !Array.isArray(a.edges) || a.edges.length>60 || !str(a.notes,4000))
     return false
@@ -61,8 +72,16 @@ export function isHubDocument(d: unknown): d is HubDocument {
   }
   return last<=d.phase
 }
+export const HUB_GATE_KEYS = ['acceptance','flow','ci','owner'] as const
+export function hasHubPhaseEvidence(doc: HubDocument): boolean {
+  return HUB_GATE_KEYS.every(key=>{
+    const value=doc.qualityEvidence?.[doc.phase+':'+key]
+    return value && value.note.trim().length>=5
+  })
+}
 export function approveHubPhase(doc: HubDocument, note: string, at: string): HubDocument {
   if (doc.phase>=10) throw new Error('La fase 10 es la última.')
+  if (!hasHubPhaseEvidence(doc)) throw new Error('Faltan evidencias manuales de QA para esta fase.')
   if (!note.trim() || note.length>500) throw new Error('Se requiere evidencia de aprobación.')
   if (!/^\d{4}-\d\d-\d\dT/.test(at)) throw new Error('Fecha inválida.')
   return {...doc, phase:doc.phase+1,
