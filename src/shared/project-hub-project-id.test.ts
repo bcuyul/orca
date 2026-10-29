@@ -5,10 +5,11 @@ describe('Project Hub native identity',()=>{
     {id:'project-local',sourceRepoIds:['repo-1']},
     {id:'project-remote',sourceRepoIds:['repo-1']}
   ]
+  // Preserve the literal ExecutionHostId domain: 'local' | `ssh:${string}` | `runtime:${string}`.
   const setups=[
     {projectId:'project-local',repoId:'repo-1',hostId:'local'},
     {projectId:'project-remote',repoId:'repo-1',hostId:'ssh:test'}
-  ]
+  ] as const
   it('trusts a known native Project.id over guessed names',()=>{
     expect(resolveHubProjectId({projectId:'project-remote',repoId:'repo-1',hostId:'local',projects,setups})).toBe('project-remote')
   })
