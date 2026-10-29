@@ -36,7 +36,7 @@ Backlog/Ready
 ## Important limitations — not production-ready
 
 1. This is **not yet a persistent background scheduler**. If the UI closes, the launch and reservation may continue but its final receipt might remain unresolved. Recovery is a separate deliverable and must query Orca's owner/host records using the saved operation ID, not guess from branch names.
-2. The proposed independent reviewer is **metadata**, not a second auto-started agent. The existing manual handoff UI remains available. Review completion cannot be marked automatically.
+2. The proposed independent reviewer is **metadata**, not a second auto-started agent. The redundant clipboard handoff panel is removed from Orquestación; there is no copy/paste in the native CLI launch flow. Review completion cannot be marked automatically.
 3. No automated `steer`/`stop`, nested coordinator roles, live transcripts, DAG dependencies, worker reports, summary synthesis, CI execution, GitHub PR creation or deployment.
 4. **The Project Hub provider-identity fallback is still unresolved** for two forks sharing the same upstream. Per-execution `repoId + hostId` binding prevents dispatch in the wrong repository, but the parent document may still need a migration to a truly fork-specific project ID.
 5. The available-capacity counter is **conservative**: `launched` and `unconfirmed` count as occupied until we integrate Orca's terminal/session status and an audited completion state. Two agents are a sensible starting budget; do not expand to 10 yet.
