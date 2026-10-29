@@ -99,11 +99,11 @@ export default function ProjectHubPanel(): React.JSX.Element {
         <div className="rounded-lg border border-border bg-card p-3">
           <h3 className="mb-2 text-sm font-medium">Aprobación de fase</h3>
           <p className="mb-2 text-xs text-muted-foreground">Aprobación humana: completa las cuatro evidencias en QA. Esto no sustituye un CI real.</p>
-          <textarea value={approvalNote} onChange={e=>setApprovalNote(e.target.value)} maxLength={500}
+          <textarea value={approvalNote} onChange={e=>setApprovalNote(e.target.value)} maxLength={500} disabled={busy}
             placeholder="Evidencia revisada, responsable y justificación…" className="min-h-20 w-full rounded border border-border bg-background p-2 text-xs"/>
           <label className="mt-2 flex items-start gap-2 text-xs"><input type="checkbox" checked={approveChecked} onChange={e=>setApproveChecked(e.target.checked)}/>
             Confirmo que revisé las evidencias y asumo esta aprobación manual</label>
-          <button type="button" disabled={busy||!approveChecked||!approvalNote.trim()||shown.phase>=10||!hasHubPhaseEvidence(shown)}
+          <button type="button" disabled={busy||!approveChecked||approvalNote.trim().length<5||shown.phase>=10||!hasHubPhaseEvidence(shown)}
             className="mt-3 flex items-center gap-2 rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40"
             onClick={()=>{void save(approveHubPhase(shown,approvalNote,new Date().toISOString())).then(ok=>{if(ok){setApprovalNote('');setApproveChecked(false)}})}}>
             <ShieldCheck className="h-4 w-4"/> Registrar aprobación y avanzar
@@ -142,7 +142,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
       {tab==='blueprint'&&<div className="space-y-3 rounded-lg border border-border bg-card p-3">
         {([['idea','Idea'],['problem','Problema'],['users','Usuarios'],['success','Indicadores de éxito']] as const).map(([key,label])=>
           <label key={key} className="block text-xs">{label}
-            <textarea value={shown.blueprint[key]} maxLength={2500}
+            <textarea value={shown.blueprint[key]} maxLength={2500} disabled={busy}
               onChange={e=>setDoc({...shown,blueprint:{...shown.blueprint,[key]:e.target.value}})}
               className="mt-1 min-h-20 w-full rounded border border-border bg-background p-2"/>
           </label>)}
