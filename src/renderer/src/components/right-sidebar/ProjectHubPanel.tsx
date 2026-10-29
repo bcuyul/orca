@@ -1,38 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LayoutDashboard, Plus, ShieldCheck } from 'lucide-react'
+import { ProjectHubJiraImport, ProjectHubArchitecture, ProjectHubDelegation, ProjectHubQuality, ProjectHubTeam } from './ProjectHubDesignViews'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
+import { resolveHubProjectId } from '../../../../shared/project-hub-project-id'
 import {
-  PROJECT_HUB_PHASES, PROJECT_HUB_STATUSES, approveHubPhase,
+  PROJECT_HUB_PHASES, PROJECT_HUB_STATUSES, approveHubPhase, hasHubPhaseEvidence,
   type HubDocument, type HubItem, type HubStatus
 } from '../../../../shared/project-hub-types'
 
-type Tab = 'summary' | 'backlog' | 'blueprint'
+type Tab = 'summary' | 'backlog' | 'blueprint' | 'delegate' | 'architecture' | 'qa' | 'team'
 const STATUS_LABELS: Record<HubStatus,string> = {
   backlog:'Backlog',ready:'Ready',doing:'En progreso',review:'Revisión / QA',blocked:'Bloqueado',done:'Terminado'
 }
 
 /** Fail closed if the host provides multiple different project owners for a workspace. */
-export function resolveHubProjectId(input: {
-  projectId?: string; repoId: string; hostId?: string
-  projects: readonly { id: string; sourceRepoIds: string[] }[]
-  setups: readonly { projectId: string; repoId: string; hostId: string }[]
-  fallback?: string
-}): string | null {
-  const byId = new Set(input.projects.map(p=>p.id))
-  if(input.projectId && byId.has(input.projectId)) return input.projectId
-  const candidates = new Set(input.setups
-    .filter(s=>s.repoId===input.repoId && (!input.hostId || s.hostId===input.hostId))
-    .map(s=>s.projectId).filter(id=>byId.has(id)))
-  if(candidates.size===1) return Array.from(candidates)[0]
-  if(candidates.size>1) return null
-  const fromRepos=input.projects.filter(p=>p.sourceRepoIds.includes(input.repoId))
-  if(fromRepos.length===1) return fromRepos[0].id
-  if(fromRepos.length>1) return null
-  return input.fallback ?? null
-}
-
 export default function ProjectHubPanel(): React.JSX.Element {
   const worktree=useAppStore(s=>s.activeWorktreeId ? s.getKnownWorktreeById(s.activeWorktreeId) : null)
   const repo=useRepoById(worktree?.repoId??null)
@@ -92,7 +75,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
       <h2 className="mt-1 text-base font-semibold">{projectName}</h2>
       <p className="truncate text-xs text-muted-foreground">{worktree?.displayName} · {worktree?.branch}</p>
       <div className="mt-3 flex gap-2 overflow-x-auto">
-        {([['summary','Resumen'],['backlog','Backlog'],['blueprint','Blueprint']] as const).map(([key,label])=>
+        {([['summary','Resumen'],['backlog','Backlog'],['delegate','Delegación'],['architecture','Arquitectura'],['qa','QA'],['blueprint','Blueprint'],['team','Equipo']] as const).map(([key,label])=>
           <button key={key} type="button" onClick={()=>setTab(key)}
             className={'rounded-md px-3 py-1.5 text-xs '+(tab===key?'bg-primary text-primary-foreground':'bg-muted text-muted-foreground')}>{label}</button>)}
       </div>
@@ -115,12 +98,12 @@ export default function ProjectHubPanel(): React.JSX.Element {
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
           <h3 className="mb-2 text-sm font-medium">Aprobación de fase</h3>
-          <p className="mb-2 text-xs text-muted-foreground">Aprobación humana manual, no equivale a pruebas de CI aprobadas.</p>
-          <textarea value={approvalNote} onChange={e=>setApprovalNote(e.target.value)} maxLength={500}
+          <p className="mb-2 text-xs text-muted-foreground">Aprobación humana: completa las cuatro evidencias en QA. Esto no sustituye un CI real.</p>
+          <textarea value={approvalNote} onChange={e=>setApprovalNote(e.target.value)} maxLength={500} disabled={busy}
             placeholder="Evidencia revisada, responsable y justificación…" className="min-h-20 w-full rounded border border-border bg-background p-2 text-xs"/>
           <label className="mt-2 flex items-start gap-2 text-xs"><input type="checkbox" checked={approveChecked} onChange={e=>setApproveChecked(e.target.checked)}/>
             Confirmo que revisé las evidencias y asumo esta aprobación manual</label>
-          <button type="button" disabled={busy||!approveChecked||!approvalNote.trim()||shown.phase>=10}
+          <button type="button" disabled={busy||!approveChecked||approvalNote.trim().length<5||shown.phase>=10||!hasHubPhaseEvidence(shown)}
             className="mt-3 flex items-center gap-2 rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40"
             onClick={()=>{void save(approveHubPhase(shown,approvalNote,new Date().toISOString())).then(ok=>{if(ok){setApprovalNote('');setApproveChecked(false)}})}}>
             <ShieldCheck className="h-4 w-4"/> Registrar aprobación y avanzar
@@ -154,17 +137,22 @@ export default function ProjectHubPanel(): React.JSX.Element {
           <button type="button" disabled={busy||!itemTitle.trim()||shown.items.length>=300}
             onClick={()=>{void addStory()}} className="mt-2 rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40">Agregar al backlog</button>
         </div>
+        <ProjectHubJiraImport doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>
       </>}
       {tab==='blueprint'&&<div className="space-y-3 rounded-lg border border-border bg-card p-3">
         {([['idea','Idea'],['problem','Problema'],['users','Usuarios'],['success','Indicadores de éxito']] as const).map(([key,label])=>
           <label key={key} className="block text-xs">{label}
-            <textarea value={shown.blueprint[key]} maxLength={2500}
+            <textarea value={shown.blueprint[key]} maxLength={2500} disabled={busy}
               onChange={e=>setDoc({...shown,blueprint:{...shown.blueprint,[key]:e.target.value}})}
               className="mt-1 min-h-20 w-full rounded border border-border bg-background p-2"/>
           </label>)}
         <button type="button" disabled={busy} onClick={()=>void save(shown)}
           className="rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40">Guardar blueprint</button>
       </div>}
+      {tab==='delegate'&&<ProjectHubDelegation doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
+      {tab==='architecture'&&<ProjectHubArchitecture doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
+      {tab==='qa'&&<ProjectHubQuality doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
+      {tab==='team'&&<ProjectHubTeam doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
     </div>}
   </section>
 }
