@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { emptyProjectHub, isHubDocument } from '../../shared/project-hub-types'
+import { prepareHubDelegation } from '../../shared/project-hub-delegation'
 
 // A test-only writer avoids depending on Windows ACL addons in isolated unit tests.
 vi.mock('../../shared/secure-file',()=>({
@@ -80,6 +81,33 @@ describe('ProjectHubStore',()=>{
       {from:1,to:2,note:'no',at}
     ]},2)).toThrow(/Invalid/)
     expect(store.read(projectId).phase).toBe(1)
+  })
+  it('persists an approved CLI plan and refuses erased IDs or an unreserved launch',()=>{
+    const db=new ProjectHubStore(root)
+    const projectId='project:cli'
+    const empty=emptyProjectHub(projectId)
+    empty.items=[{id:'PH-001',title:'Isolated worktree',type:'story',status:'ready',phase:1,
+      source:'local',acceptance:'Separate CLI worker',description:''}]
+    const initial=db.save(projectId,empty,0)
+    const planned=prepareHubDelegation({document:initial,storyIds:['PH-001'],
+      agent:'opencode',reviewer:'codex',baseBranch:'main',now:new Date().toISOString(),
+      mint:()=>({id:'hub-'+'1'.repeat(32),operationId:'1793290000000-'+'1'.repeat(32)})})
+    const saved=db.save(projectId,planned,1)
+    expect(db.read(projectId).delegations?.[0].status).toBe('planned')
+    const row=saved.delegations![0]
+    expect(()=>db.save(projectId,{...saved,delegations:[]},2)).toThrow(/Delegation history/)
+    expect(()=>db.save(projectId,{...saved,delegations:[{
+      ...row,status:'launched',worktreeId:'wt1',terminalHandle:'term1'
+    }]},2)).toThrow(/Delegation history/)
+    const reserved=db.save(projectId,{...saved,delegations:[{...row,status:'launching'}]},2)
+    expect(reserved.delegations?.[0].operationId).toBe(row.operationId)
+    const launched=db.save(projectId,{...reserved,delegations:[{
+      ...row,status:'launched',worktreeId:'wt1',terminalHandle:'term1'
+    }]},3)
+    expect(launched.delegations?.[0].worktreeId).toBe('wt1')
+    expect(()=>db.save(projectId,{...launched,delegations:[{
+      ...launched.delegations![0],agent:'claude'
+    }]},4)).toThrow(/Delegation history/)
   })
   it('fails closed if existing JSON is corrupted',()=>{
     const store=new ProjectHubStore(root)
