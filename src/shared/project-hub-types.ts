@@ -43,7 +43,9 @@ export function isHubDocument(d: unknown): d is HubDocument {
   if(evidence!==undefined) {
     if(!isRecord(evidence) || Object.keys(evidence).length>40) return false
     for(const [key,value] of Object.entries(evidence)) {
-      if(!/^(?:[1-9]|10):(acceptance|flow|ci|owner)$/.test(key)||!isRecord(value)||
+      // Do not allow a caller to preload approvals for future phases.
+      if(!/^(?:[1-9]|10):(acceptance|flow|ci|owner)$/.test(key)||
+        Number(key.split(':')[0])>d.phase||!isRecord(value)||
         !['verified','not-applicable'].includes(String(value.status))||
         !str(value.note,500)||value.note.trim().length<5||!str(value.at,80)) return false
     }
