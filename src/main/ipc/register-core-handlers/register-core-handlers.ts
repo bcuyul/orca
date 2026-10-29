@@ -59,6 +59,7 @@ import { registerTelemetryHandlers } from '../telemetry'
 import { registerShellHandlers } from '../shell'
 import { registerPetHandlers } from '../pet'
 import { registerPluginHandlers } from '../plugins'
+import { registerProjectHubHandlers } from '../project-hub'
 import { registerUIHandlers, setTrustedUIRendererWebContentsId } from '../ui'
 import { registerEmulatorFrameStreamHandlers } from '../emulator-frame-stream'
 import { registerEmulatorVideoStreamHandlers } from '../emulator-video-stream'
@@ -221,6 +222,7 @@ export function registerCoreHandlers(
   registerTerminalRenderDesyncEvidenceHandler()
   registerComputerUsePermissionHandlers()
   registerSettingsHandlers(store, agentAwakeService)
+  registerProjectHubHandlers(store, mainWindowWebContentsId)
   registerSkillsHandlers(store, runtime)
   registerSkillDeleteIpcHandlers(store, runtime)
   if (automations) {
