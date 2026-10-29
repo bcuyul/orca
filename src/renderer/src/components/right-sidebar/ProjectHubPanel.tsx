@@ -76,7 +76,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
       <h2 className="mt-1 text-base font-semibold">{projectName}</h2>
       <p className="truncate text-xs text-muted-foreground">{worktree?.displayName} · {worktree?.branch}</p>
       <div className="mt-3 flex gap-2 overflow-x-auto">
-        {([['summary','Resumen'],['backlog','Backlog'],['delegate','Delegación'],['architecture','Arquitectura'],['qa','QA'],['blueprint','Blueprint'],['team','Equipo']] as const).map(([key,label])=>
+        {([['summary','Resumen'],['backlog','Backlog'],['delegate','Orquestación'],['architecture','Arquitectura'],['qa','QA'],['blueprint','Blueprint'],['team','Equipo']] as const).map(([key,label])=>
           <button key={key} type="button" onClick={()=>setTab(key)}
             className={'rounded-md px-3 py-1.5 text-xs '+(tab===key?'bg-primary text-primary-foreground':'bg-muted text-muted-foreground')}>{label}</button>)}
       </div>
