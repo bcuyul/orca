@@ -33,6 +33,15 @@ export class ProjectHubStore {
     // Approvals are append-only; phase changes require a gate and one matching record.
     if (JSON.stringify(incoming.approvals.slice(0,prev.approvals.length))!==JSON.stringify(prev.approvals))
       throw new Error('Approval history cannot be rewritten')
+    // Once a phase is approved, its evidence is locked to that audit record.
+    const locked=new Set(prev.approvals.map(a=>a.from))
+    const before=prev.qualityEvidence??{}
+    const after=incoming.qualityEvidence??{}
+    for(const key of new Set([...Object.keys(before),...Object.keys(after)])) {
+      const phase=Number(key.split(':')[0])
+      if(locked.has(phase)&&JSON.stringify(before[key])!==JSON.stringify(after[key]))
+        throw new Error('Approved QA evidence cannot be rewritten')
+    }
     if (incoming.phase===prev.phase) {
       if (incoming.approvals.length!==prev.approvals.length) throw new Error('Unexpected approval record')
     } else if (incoming.phase===prev.phase+1) {
