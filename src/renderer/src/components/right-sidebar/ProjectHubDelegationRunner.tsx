@@ -40,15 +40,16 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   const available=document.items.filter(item=>
     ['backlog','ready'].includes(item.status)&&!rows.some(d=>d.storyId===item.id)
   )
-  const running=rows.filter(d=>['launched','launching','unconfirmed'].includes(d.status)).length
-  const pending=rows.filter(d=>d.status==='planned')
+  const running=rows.filter(d=>d.repoId===repoId&&d.hostId===hostId&&
+    ['launched','launching','unconfirmed'].includes(d.status)).length
+  const pending=rows.filter(d=>d.status==='planned'&&d.repoId===repoId&&d.hostId===hostId)
   const slots=Math.max(0,limit-running)
 
   async function prepare():Promise<void>{
     setNotice('')
     try{
       const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,
-        baseBranch:branch,now:new Date().toISOString(),
+        baseBranch:branch,repoId,hostId,now:new Date().toISOString(),
         mint:()=>{
           const uuid=crypto.randomUUID().replaceAll('-','').toLowerCase()
           return {id:'hub-'+uuid,operationId:createStructuredAgentSessionOperationId(()=>crypto.randomUUID())}
@@ -67,7 +68,8 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       for(const planned of pending.slice(0,slots)){
         const fresh=await window.api.projectHub.read(targetProject)
         const current=fresh.delegations?.find(x=>x.id===planned.id)
-        if(!current||current.status!=='planned'||current.operationId!==planned.operationId)
+        if(!current||current.status!=='planned'||current.operationId!==planned.operationId||
+           current.repoId!==repoId||current.hostId!==hostId)
           throw new Error('Plan modified by another window. Reload before launching.')
         const reserved:HubDocument={...fresh,delegations:(fresh.delegations??[]).map(row=>
           row.id===current.id?{...row,status:'launching' as const}:row)}
@@ -173,7 +175,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       <h4 className="text-xs font-semibold">Plan registrado</h4>
       {rows.map(d=><div key={d.id} className="rounded border border-border bg-background p-2 text-xs">
         <strong>{d.storyId}</strong> · {names[d.agent]} · {statuses[d.status]}
-        <p className="break-all text-muted-foreground">{d.name}{d.worktreeId?' · '+d.worktreeId:''}</p>
+        <p className="break-all text-muted-foreground">{d.name} · repo {d.repoId} · host {d.hostId}{d.worktreeId?' · '+d.worktreeId:''}</p>
         {d.warning&&<p role="alert" className="text-destructive">{d.warning}</p>}
       </div>)}
     </div>}
