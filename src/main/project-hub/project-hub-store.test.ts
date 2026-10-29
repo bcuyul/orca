@@ -90,7 +90,7 @@ describe('ProjectHubStore',()=>{
       source:'local',acceptance:'Separate CLI worker',description:''}]
     const initial=db.save(projectId,empty,0)
     const planned=prepareHubDelegation({document:initial,storyIds:['PH-001'],
-      agent:'opencode',reviewer:'codex',baseBranch:'main',now:new Date().toISOString(),
+      agent:'opencode',reviewer:'codex',baseBranch:'main',repoId:'repoA',hostId:'local',now:new Date().toISOString(),
       mint:()=>({id:'hub-'+'1'.repeat(32),operationId:'1793290000000-'+'1'.repeat(32)})})
     const saved=db.save(projectId,planned,1)
     expect(db.read(projectId).delegations?.[0].status).toBe('planned')
