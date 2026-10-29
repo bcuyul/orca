@@ -24,7 +24,7 @@ const button='rounded-md border border-border bg-muted px-3 py-2 text-xs disable
 const statuses={
   planned:'Preparado, sin ejecutar',
   launching:'Lanzamiento reservado / resultado pendiente',
-  launched:'CLI iniciado; trabajo sin verificar',
+  launched:'CLI iniciado; instrucciones entregadas; trabajo sin verificar',
   unconfirmed:'Resultado desconocido: requiere conciliación'
 } as const
 
@@ -135,8 +135,9 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   return <section className="space-y-3 rounded-lg border border-border bg-card p-3">
     <h3 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4"/> Centro de ejecución</h3>
     <p className="text-xs text-muted-foreground">
-      Selecciona historias, crea un plan persistente y lanza los CLI en worktrees de Orca.
-      Los estados reflejan el lanzamiento, no la terminación de los agentes.
+      Selecciona historias y autoriza el inicio. Orca creará un worktree y una sesión CLI por historia,
+      enviando las instrucciones automáticamente al agente asignado, sin copiar ni pegar.
+      El estado indica entrega inicial, no finalización ni aprobación.
     </p>
     {!local&&<p role="alert" className="text-xs text-destructive">
       Lanzamiento deshabilitado en hosts remotos: falta enlace RPC específico al host. Solo planificación permitida.
@@ -164,6 +165,9 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         </select>
       </label>
     </div>
+    <p className="text-xs text-muted-foreground">
+      El revisor queda registrado en el plan. Su sesión y la revisión automática se habilitarán en una fase posterior.
+    </p>
     <div className="flex flex-wrap items-end gap-2">
       <label className="text-xs">Máximo de agentes simultáneos
         <select className="mt-1 block rounded border border-border bg-background p-2"
@@ -192,7 +196,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       </label>
       <button type="button" className={button} disabled={!approved||busy||!local||slots<1}
         onClick={()=>void launchBatch()}>
-        <PlayCircle className="mr-1 inline h-4 w-4"/> Lanzar hasta {Math.min(slots,pending.length)} worker(s)
+        <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones a {Math.min(slots,pending.length)} agente(s)
       </button>
     </>}
     {running>0&&<p className="flex items-start gap-2 text-xs text-muted-foreground">
