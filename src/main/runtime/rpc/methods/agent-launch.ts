@@ -11,11 +11,7 @@ import {
   WorktreeCreateCollisionError,
   WORKTREE_CREATE_COLLISION_CODE
 } from '../../../../shared/new-workspace/worktree-create-collision'
-import { executeAgentLaunch } from '../../../agent-launch/agent-launch-executor'
-import {
-  trackTerminalSpawnDispatch,
-  type TerminalSpawnDispatch
-} from '../../../agent-launch/agent-launch-not-started'
+import { trackTerminalSpawnDispatch } from '../../../agent-launch/agent-launch-not-started'
 import type { OrcaRuntimeService } from '../../orca-runtime'
 import { defineMethod, type RpcContext } from '../core'
 import { admitAgentLaunchOperation, agentLaunchOperationCallerKey } from './agent-launch-replay'
@@ -32,24 +28,16 @@ import {
   AgentLaunchReplay,
   type AgentLaunchParams
 } from '../../../../shared/rpc-contract/agent-launch-params'
-import { agentLaunchSurfaceFactory } from './agent-launch-surfaces'
 import {
   agentLaunchFailureCode,
   launchFailureWithoutEffectsCode
 } from './agent-launch-failure-code'
-import {
-  agentLaunchCallerNavigationId,
-  callerRendersLaunchedChat,
-  selectAgentLaunchTabForCaller
-} from './agent-launch-caller-selection'
-import { agentLaunchWorkspaceFactory } from './agent-launch-worktree-creation'
+import { callerRendersLaunchedChat } from './agent-launch-caller-selection'
 import { assertAgentLaunchTargetAuthorized } from './agent-launch-target-authorization'
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
-import {
-  publishEarlyTab,
-  withPlacement,
-  type AgentLaunchView
-} from './agent-launch-tab-publication'
+import { publishEarlyTab, type AgentLaunchView } from './agent-launch-tab-publication'
+import { runAgentLaunch } from './agent-launch-runtime-execution'
+import { logAgentLaunchFailure, type AgentLaunchDiagnosticStage } from './agent-launch-execution-diagnostics'
 
 /** agent.launch.v2 declares support for both outcomes. CLI/runtime-socket and SSH bridges have no clientKind/capabilities; the desktop renderer is a runtime client and must advertise support. */
 export function supportsAgentLaunch(
@@ -59,50 +47,6 @@ export function supportsAgentLaunch(
     context.clientKind === undefined ||
     context.clientCapabilities?.includes(AGENT_LAUNCH_RUNTIME_CAPABILITY) === true
   )
-}
-
-/** What a launch admitted under an operation id carries into its execution. */
-type ReplaySafeLaunch = {
-  attachOperationId: string
-  callerKey: string
-  terminalSpawn: TerminalSpawnDispatch
-  /** Queue provisional surface/prompt recording without awaiting it; ordered ledger transactions keep final settlement after it. */
-  recordSurface: (provisional: AgentLaunchResult) => void
-  /** Diagnostics only: a stage marker, not an assertion about side effects. */
-  onStage?: (stage: 'worktree_create' | 'mode_settle' | 'surface_create') => void
-}
-
-async function runAgentLaunch(
-  { intent, decidedMode }: Awaited<ReturnType<typeof resolveUnlaunchedIntent>>,
-  context: RpcContext,
-  view: AgentLaunchView,
-  replaySafe?: ReplaySafeLaunch
-): Promise<AgentLaunchResult> {
-  const callerNavigationId = agentLaunchCallerNavigationId(intent.target, context)
-  const result = await executeAgentLaunch({
-    runtime: context.runtime,
-    intent,
-    decidedMode,
-    surfaces: agentLaunchSurfaceFactory(
-      context,
-      replaySafe?.attachOperationId,
-      replaySafe?.callerKey,
-      callerNavigationId !== null,
-      replaySafe?.terminalSpawn,
-      view
-    ),
-    workspaces: agentLaunchWorkspaceFactory(context, intent.agent),
-    ...(replaySafe?.onStage ? { onStage: replaySafe.onStage } : {}),
-    // The tab is shown as it is published, not after a prompt that can take a minute to land.
-    onSurfacePublished: (surface) => {
-      view.early?.surfacePublished(surface)
-      replaySafe?.recordSurface(withPlacement(surface, view))
-      if (callerNavigationId !== null && view.presentation !== 'background') {
-        selectAgentLaunchTabForCaller(context.runtime, surface, callerNavigationId)
-      }
-    }
-  })
-  return withPlacement(result, view)
 }
 
 /** Legacy unnamed launches retain the 60-second create dedupe cache (repo/mutation id, no caller partition).
@@ -209,8 +153,7 @@ async function executeAdmittedAgentLaunch(
   }
   const terminalSpawn = trackTerminalSpawnDispatch()
   // Do not infer side-effect absence from the stage; git/PTY operations may be partially applied.
-  let diagnosticStage: 'intent_resolved' | 'worktree_create' | 'mode_settle' | 'surface_create' =
-    'intent_resolved'
+  let diagnosticStage: AgentLaunchDiagnosticStage = 'intent_resolved'
   let result: AgentLaunchResult
   try {
     result = await runAgentLaunch(resolved, context, view, {
@@ -223,22 +166,13 @@ async function executeAdmittedAgentLaunch(
       recordSurface: (provisional) => void settleQuietly(admission.record(provisional))
     })
   } catch (error) {
-    // An error message or stack can include paths, prompts or provider secrets. Log only
-    // stable structural fields. This is a diagnostic breadcrumb, never a retry permit.
-    const diagnosticErrorName = error instanceof Error ? error.name : typeof error
-    const diagnosticErrorCode =
-      typeof error === 'object' && error !== null && 'code' in error &&
-      typeof error.code === 'string' && /^[A-Za-z0-9_.-]{1,100}$/.test(error.code)
-        ? error.code
-        : undefined
-    console.warn('[agent-launch] launch execution rejected', {
+    logAgentLaunchFailure({
+      error,
       operationId: params.operationId,
       agent: params.agent,
       targetKind: resolved.intent.target.kind,
       stage: diagnosticStage,
-      errorName: diagnosticErrorName,
-      ...(diagnosticErrorCode ? { errorCode: diagnosticErrorCode } : {}),
-      ptyDispatchAbsenceProven: terminalSpawn.failedBeforeDispatch(error)
+      terminalSpawn
     })
     if (view.early?.closedByUser()) {
       await settleLaunchWhoseTabWasClosed(context, view.early, admission)
