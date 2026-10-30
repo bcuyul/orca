@@ -64,7 +64,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
         setRawPlan('')
         setBlockerForReplan('')
       }
-    } catch (error) { setNotice('Propuesta rechazada: ' + String(error)) }
+    } catch (error) { setNotice(`Propuesta rechazada: ${String(error)}`) }
   }
   async function reportBlocker(): Promise<void> {
     if (!blockPlan?.tasks.some(t => t.id === taskForBlocker)) { setNotice('Selecciona una tarea válida.'); return }
