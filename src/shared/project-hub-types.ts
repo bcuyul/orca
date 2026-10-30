@@ -1,4 +1,5 @@
 /** Project Hub data is keyed by an Orca Project, never by a disposable worktree. */
+import { isHubDelegationList, type HubDelegation } from './project-hub-delegation'
 export const PROJECT_HUB_PHASES = [
   'Descubrimiento del problema', 'Investigación, stack e infraestructura',
   'Desarrollo de arquitectura', 'MVP', 'Primera validación',
@@ -16,6 +17,7 @@ export type HubDocument = {
   blueprint: { idea: string; problem: string; users: string; success: string }
   items: HubItem[]
   architecture: { nodes: { name: string; kind: string }[]; edges: { from: string; to: string }[]; notes: string }
+  delegations?: HubDelegation[]
   approvals: { from: number; to: number; note: string; at: string }[]
   /** Evidence is explicitly user-attested; never inferred from disconnected CI. */
   qualityEvidence?: Record<string, { status: 'verified'|'not-applicable'; note: string; at: string }>
@@ -67,6 +69,7 @@ export function isHubDocument(d: unknown): d is HubDocument {
       !str(item.acceptance,2000)||!str(item.description,4000)) return false
     ids.add(item.id)
   }
+  if(d.delegations!==undefined && !isHubDelegationList(d.delegations,ids)) return false
   let last=1
   for (const approval of d.approvals) {
     if (!isRecord(approval)||!phase(approval.from)||!phase(approval.to)||

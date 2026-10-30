@@ -3,6 +3,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeSecureFile } from '../../shared/secure-file'
 import { emptyProjectHub, isHubDocument, hasHubPhaseEvidence, type HubDocument } from '../../shared/project-hub-types'
+import { isHubDelegationTransition } from '../../shared/project-hub-delegation'
 
 const LIMIT = 512 * 1024
 export function hubFilePath(root: string, projectId: string): string {
@@ -30,6 +31,8 @@ export class ProjectHubStore {
     const prev=this.read(projectId)
     if(!Number.isSafeInteger(expectedRevision)||prev.revision!==expectedRevision||incoming.revision!==expectedRevision)
       throw new Error('Conflict: reload Project Hub before saving')
+    if(!isHubDelegationTransition(prev.delegations??[],incoming.delegations??[]))
+      throw new Error('Delegation history cannot be deleted, reassigned or skip launch reservation')
     // Approvals are append-only; phase changes require a gate and one matching record.
     if (JSON.stringify(incoming.approvals.slice(0,prev.approvals.length))!==JSON.stringify(prev.approvals))
       throw new Error('Approval history cannot be rewritten')

@@ -1,0 +1,102 @@
+# Fork-scoped, least-privilege CI for Project Hub. Runs on draft PRs too.
+# It cannot deploy, publish, merge, run an agent or access production secrets.
+name: Project Hub laboratory CI
+
+on:
+  push:
+    branches:
+      - feat/project-hub-hermes-delegation
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - feat/project-hub-design-views
+    paths:
+      - '.github/workflows/project-hub-lab-ci.yml'
+      - 'src/main/project-hub/**'
+      - 'src/main/runtime/rpc/methods/agent-launch*'
+      - 'src/renderer/src/components/right-sidebar/ProjectHub*'
+      - 'src/shared/project-hub*'
+      - 'src/shared/project-hub-souls/**'
+      - 'src/types/project-hub-soul-raw.d.ts'
+      - 'docs/project-hub/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-hub-lab-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: TypeScript, lint, contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout non-privileged source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # Reuse the repository's pinned pnpm + native runtime preparation.
+      - name: Install and prepare Node 24 dependencies
+        uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+
+      - name: Configure repository-pinned Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: config/.bun-version
+          no-cache: true
+
+      - name: Lint Project Hub and launch boundaries
+        run: |
+          pnpm exec oxlint \
+            src/shared/project-hub-delegation.ts \
+            src/shared/project-hub-delegation.test.ts \
+            src/shared/project-hub-delegation-capacity.ts \
+            src/shared/project-hub-delegation-capacity.test.ts \
+            src/shared/project-hub-agent-profiles.ts \
+            src/renderer/src/components/right-sidebar/ProjectHubDelegationRunner.tsx \
+            src/main/runtime/rpc/methods/agent-launch.ts \
+            src/main/runtime/rpc/methods/agent-launch-runtime-execution.ts \
+            src/main/runtime/rpc/methods/agent-launch-execution-diagnostics.ts
+
+      - name: Typecheck entire workspace
+        run: pnpm typecheck
+
+      - name: Test Project Hub contracts and replay-safe agent launching
+        run: |
+          pnpm exec vitest run --config config/vitest.config.ts \
+            src/shared/project-hub-delegation-capacity.test.ts \
+            src/shared/project-hub-delegation.test.ts \
+            src/main/project-hub/project-hub-store.test.ts \
+            src/main/runtime/rpc/methods/agent-launch.test.ts \
+            src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
+            src/main/runtime/rpc/methods/agent-launch-prestart-failure.test.ts \
+            src/main/agent-launch/agent-launch-executor.test.ts
+
+      - name: Compile Electron main, preload and renderer (no installer, no deployment)
+        if: runner.os == 'Linux'
+        env:
+          ORCA_CI_MAIN_SOURCEMAPS: '0'
+        run: pnpm run build:electron-vite
+
+      - name: Publish non-installable lab build for inspection only
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: orca-project-hub-lab-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 3
