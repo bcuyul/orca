@@ -17,7 +17,7 @@ export function renderAtlasPlanningPrompt(
   const memories = document.intelligence ?
     approvedHubMemories(document.intelligence).slice(-5) : []
   const query = [document.blueprint.idea, document.blueprint.problem,
-    ...document.items.map(i => i.title + ' ' + i.acceptance)].join(' ')
+    ...document.items.map(i => `${i.title} ${i.acceptance}`)].join(' ')
   const sharedSkills = retrieveHubSharedSkills(query)
   const lines = [
     '# Atlas: propose a plan, never execute it',
@@ -55,7 +55,7 @@ export function parseAtlasPlanJson(
     blockerId?: string
   }
 ): HubPlanProposal {
-  if (!text || text.length > 30_000) throw new Error('Plan exceeds bounded input size')
+  if (!text || text.length > 30_000) { throw new Error('Plan exceeds bounded input size') }
   const raw: unknown = JSON.parse(text)
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error('Expected a JSON plan object')
@@ -71,7 +71,7 @@ export function parseAtlasPlanJson(
     ...(metadata.previousPlanId ? { previousPlanId: metadata.previousPlanId } : {}),
     ...(metadata.blockerId ? { blockerId: metadata.blockerId } : {})
   }
-  if (!isHubPlanProposal(proposal)) throw new Error('Invalid DAG proposal or unbounded fields')
+  if (!isHubPlanProposal(proposal)) { throw new Error('Invalid DAG proposal or unbounded fields') }
   return proposal
 }
 
