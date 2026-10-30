@@ -23,6 +23,21 @@ Atlas and QA prompts include SOUL text as role guidance, never extra permissions
 - No worker-diff collection or externally verified CI evidence in QA UI; review verdicts are manual declarations.
 - No autonomous retry/correction loop, no safe release of unknown PH-001, no cross-project promotion of untrusted private lessons, no automatic PR/merge/deploy.
 
+## Guided UX and resource boundaries (Draft PR #5)
+
+- Plans and task dropdowns now display objectives, role and task labels, not only opaque IDs; IDs remain authoritative in stored records.
+- Each plan/memory card has its own justification and explicit human confirmation; existing decisions are shown as accepted/rejected with the recorded reason. No old decision is overwritten.
+- QA follows plan → task → evidence reference → optional external prompt → manual verdict/findings. Evidence is a **declaration**, not an automated GitHub/CI verification.
+- This is a UI-only safety improvement: no native Run/Task/Dispatch, scheduled agent, reviewer launch, or push/merge/deploy path was added.
+
+### Graphs and token efficiency
+
+- A validated DAG already models dependencies among 1–20 tasks; do not add a graph database or heavy graph visualization dependency for this scale.
+- Project memories and reviewed repository skills are already bounded. Retain approved-only project memory and targeted keyword retrieval until retrieval quality warrants more complexity.
+- Future agent execution should pass a minimal task context (objective, acceptance, dependencies, targeted code/diff and relevant lessons), not a full project history on every hop.
+- Separate model-facing token budgets from UI and persistence costs; **this PR does not currently invoke Atlas or QA models** and therefore cannot report real agent token savings.
+- Prefer one planner, parallel execution only for independent DAG nodes, and a separate reviewer supplied with diff and verified CI references. Record actual per-run input/output token usage before tuning budgets.
+
 ## Next increments in dependency order
 
 1. **Atlas connector**: call Orca's already-supported CLI/agent surfaces with a new, approved operation and durable plan identity, validate JSON output, persist proposal. Do not reuse PH-001 or fabricate session IDs.
