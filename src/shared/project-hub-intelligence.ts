@@ -78,7 +78,7 @@ export function isHubPlanProposal(p: unknown): p is HubPlanProposal {
     !content(p.rationale, 2400) || !['atlas-proposal', 'human'].includes(String(p.source)) ||
     !timestamp(p.createdAt) || !Array.isArray(p.tasks) || p.tasks.length < 1 || p.tasks.length > 20 ||
     (p.previousPlanId !== undefined && !identifier(p.previousPlanId)) ||
-    (p.blockerId !== undefined && !identifier(p.blockerId))) return false
+    (p.blockerId !== undefined && !identifier(p.blockerId))) { return false }
   const ids = new Set<string>()
   const edges = new Map<string, string[]>()
   for (const t of p.tasks) {
@@ -86,18 +86,18 @@ export function isHubPlanProposal(p: unknown): p is HubPlanProposal {
       !roles.includes(String(t.role)) || !content(t.acceptance, 2000) ||
       !Array.isArray(t.dependsOn) || t.dependsOn.length > 19 ||
       t.dependsOn.some(d => !identifier(d)) ||
-      new Set(t.dependsOn).size !== t.dependsOn.length) return false
+      new Set(t.dependsOn).size !== t.dependsOn.length) { return false }
     ids.add(t.id)
     edges.set(t.id, t.dependsOn)
   }
-  if ([...edges.values()].some(ds => ds.some(d => !ids.has(d)))) return false
+  if ([...edges.values()].some(ds => ds.some(d => !ids.has(d)))) { return false }
   const visited = new Set<string>()
   const visiting = new Set<string>()
   function visit(id: string): boolean {
-    if (visiting.has(id)) return false
-    if (visited.has(id)) return true
+    if (visiting.has(id)) { return false }
+    if (visited.has(id)) { return true }
     visiting.add(id)
-    for (const dep of edges.get(id) ?? []) if (!visit(dep)) return false
+    for (const dep of edges.get(id) ?? []) { if (!visit(dep)) { return false } }
     visiting.delete(id)
     visited.add(id)
     return true
@@ -106,10 +106,10 @@ export function isHubPlanProposal(p: unknown): p is HubPlanProposal {
 }
 
 export function isHubIntelligence(x: unknown): x is HubIntelligence {
-  if (!record(x)) return false
+  if (!record(x)) { return false }
   for (const [key, max] of Object.entries(MAX)) {
     const rows = x[key]
-    if (!Array.isArray(rows) || rows.length > max) return false
+    if (!Array.isArray(rows) || rows.length > max) { return false }
   }
   const plans = x.plans as unknown[]
   const blockers = x.blockers as unknown[]
@@ -122,37 +122,37 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
   const memoryIds = new Set<string>()
   const allIds = new Set<string>()
   const takeId = (row: { id: unknown }): boolean => {
-    if (!identifier(row.id) || allIds.has(row.id)) return false
+    if (!identifier(row.id) || allIds.has(row.id)) { return false }
     allIds.add(row.id)
     return true
   }
   for (const value of plans) {
-    if (!isHubPlanProposal(value) || !takeId(value)) return false
+    if (!isHubPlanProposal(value) || !takeId(value)) { return false }
     planIds.add(value.id)
     plansById.set(value.id, value)
     // Previous plans precede their revisions; blocker references are checked below.
     if (value.previousPlanId && (!planIds.has(value.previousPlanId) ||
-      !value.blockerId)) return false
+      !value.blockerId)) { return false }
   }
   for (const value of blockers) {
     if (!record(value) || !takeId(value) || !identifier(value.planId) ||
       !identifier(value.taskId) || !content(value.observation, 2000) ||
-      !content(value.recommendedAction, 1600) || !timestamp(value.createdAt)) return false
+      !content(value.recommendedAction, 1600) || !timestamp(value.createdAt)) { return false }
     const plan = plansById.get(value.planId)
-    if (!plan?.tasks.some(t => t.id === value.taskId)) return false
+    if (!plan?.tasks.some(t => t.id === value.taskId)) { return false }
     blockerIds.add(value.id)
   }
   // A replan may only cite a blocker belonging to the replaced plan.
   for (const p of plansById.values()) {
     if (p.previousPlanId && (!p.blockerId ||
       !blockers.some(b => record(b) && b.id === p.blockerId &&
-        b.planId === p.previousPlanId))) return false
-    if (!p.previousPlanId && p.blockerId) return false
+        b.planId === p.previousPlanId))) { return false }
+    if (!p.previousPlanId && p.blockerId) { return false }
   }
   for (const value of memories) {
     if (!record(value) || !takeId(value) || !content(value.lesson, 1500) ||
       !content(value.applicability, 800) || !content(value.evidenceRef, 600) ||
-      !timestamp(value.createdAt)) return false
+      !timestamp(value.createdAt)) { return false }
     memoryIds.add(value.id as string)
   }
   for (const value of reviews) {
@@ -160,19 +160,19 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
       !identifier(value.taskId) || !['qa','human'].includes(String(value.reviewer)) ||
       !['approved','changes-requested','inconclusive'].includes(String(value.verdict)) ||
       !content(value.findings, 2000) || !content(value.evidenceRef, 600) ||
-      !timestamp(value.createdAt)) return false
-    if (!plansById.get(value.planId)?.tasks.some(t => t.id === value.taskId)) return false
+      !timestamp(value.createdAt)) { return false }
+    if (!plansById.get(value.planId)?.tasks.some(t => t.id === value.taskId)) { return false }
   }
   const decided = new Set<string>()
   for (const value of decisions) {
     if (!record(value) || !takeId(value) ||
       !['plan','memory'].includes(String(value.subject)) ||
       !identifier(value.subjectId) || !['accepted','rejected'].includes(String(value.verdict)) ||
-      !content(value.justification, 1000) || !timestamp(value.createdAt)) return false
+      !content(value.justification, 1000) || !timestamp(value.createdAt)) { return false }
     if (value.subject === 'plan' ? !planIds.has(value.subjectId as string) :
-      !memoryIds.has(value.subjectId as string)) return false
+      !memoryIds.has(value.subjectId as string)) { return false }
     const key = `${value.subject}:${value.subjectId}`
-    if (decided.has(key)) return false
+    if (decided.has(key)) { return false }
     decided.add(key)
   }
   return true
