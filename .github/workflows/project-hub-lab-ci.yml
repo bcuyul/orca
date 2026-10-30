@@ -16,6 +16,7 @@ on:
       - 'src/main/runtime/rpc/methods/agent-launch*'
       - 'src/renderer/src/components/right-sidebar/ProjectHub*'
       - 'src/shared/project-hub*'
+      - 'src/shared/project-hub-souls/**'
       - 'src/types/project-hub-soul-raw.d.ts'
       - 'docs/project-hub/**'
 
