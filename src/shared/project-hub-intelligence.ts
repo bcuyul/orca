@@ -111,14 +111,13 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
     const rows = x[key]
     if (!Array.isArray(rows) || rows.length > max) { return false }
   }
-  const plans = x.plans as unknown[]
-  const blockers = x.blockers as unknown[]
-  const memories = x.memories as unknown[]
-  const reviews = x.reviews as unknown[]
-  const decisions = x.decisions as unknown[]
+  const plans: unknown[] = Array.isArray(x.plans) ? x.plans : []
+  const blockers: unknown[] = Array.isArray(x.blockers) ? x.blockers : []
+  const memories: unknown[] = Array.isArray(x.memories) ? x.memories : []
+  const reviews: unknown[] = Array.isArray(x.reviews) ? x.reviews : []
+  const decisions: unknown[] = Array.isArray(x.decisions) ? x.decisions : []
   const planIds = new Set<string>()
   const plansById = new Map<string, HubPlanProposal>()
-  const blockerIds = new Set<string>()
   const memoryIds = new Set<string>()
   const allIds = new Set<string>()
   const takeId = (row: { id: unknown }): boolean => {
@@ -140,7 +139,6 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
       !content(value.recommendedAction, 1600) || !timestamp(value.createdAt)) { return false }
     const plan = plansById.get(value.planId)
     if (!plan?.tasks.some(t => t.id === value.taskId)) { return false }
-    blockerIds.add(value.id)
   }
   // A replan may only cite a blocker belonging to the replaced plan.
   for (const p of plansById.values()) {
@@ -150,10 +148,10 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
     if (!p.previousPlanId && p.blockerId) { return false }
   }
   for (const value of memories) {
-    if (!record(value) || !takeId(value) || !content(value.lesson, 1500) ||
+    if (!record(value) || !identifier(value.id) || !takeId(value) || !content(value.lesson, 1500) ||
       !content(value.applicability, 800) || !content(value.evidenceRef, 600) ||
       !timestamp(value.createdAt)) { return false }
-    memoryIds.add(value.id as string)
+    memoryIds.add(value.id)
   }
   for (const value of reviews) {
     if (!record(value) || !takeId(value) || !identifier(value.planId) ||
