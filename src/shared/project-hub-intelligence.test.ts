@@ -7,6 +7,7 @@ import {
   parseAtlasPlanJson, renderAtlasPlanningPrompt, renderQaReviewPrompt
 } from './project-hub-intelligence-prompts'
 import { emptyProjectHub } from './project-hub-types'
+import { retrieveHubSharedSkills } from './project-hub-shared-skills'
 
 const at = '2026-10-30T10:00:00Z'
 const plan = (): HubPlanProposal => ({
@@ -70,6 +71,13 @@ describe('Agent intelligence contracts', () => {
     expect(isHubIntelligence({...initial,reviews:[{...qa,evidenceRef:''}]})).toBe(false)
   })
 
+  it('retrieves a repository-reviewed SQLite skill across projects without exposing other project memories', () => {
+    expect(retrieveHubSharedSkills('Windows SQLite EBUSY in Vitest')).toHaveLength(1)
+    expect(retrieveHubSharedSkills('Change button padding')).toHaveLength(0)
+    const doc = emptyProjectHub('completely-unrelated-project')
+    doc.blueprint.problem = 'SQLite EBUSY during Windows Vitest tests'
+    expect(renderAtlasPlanningPrompt(doc)).toContain('Windows SQLite test fixture cleanup')
+  })
   it('renders safe Atlas/QA prompts and parses only valid JSON proposals', () => {
     const doc = emptyProjectHub('repo:test')
     doc.blueprint.idea = 'Implement supervised multi-agent planning'
