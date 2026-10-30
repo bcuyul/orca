@@ -14,7 +14,7 @@ A small domain layer was added **inside existing Project Hub persistence**:
 
 `ProjectHubStore` already uses project-scoped JSON, secure persistence and revision checks. `isHubIntelligence` bounds the new optional `intelligence` payload; `isHubIntelligenceTransition` prohibits rewriting/deleting any prior plan, blocker, memory, review or decision. Legacy `schema:1` docs with no intelligence field (including PH-001) remain valid.
 
-Atlas and QA prompts include SOUL text as role guidance, never extra permissions. Project context may be sensitive: review generated prompts before sending them to any model.
+Atlas and QA prompts include SOUL text as role guidance, never extra permissions. Project context may be sensitive: review generated prompts before sending them to any model. Imported project/agent text is JSON-quoted and angle-bracket escaped in prompts so it cannot forge `<project-data>` boundaries or emit raw multiline instructions. This is only delimiter hardening; it does **not** eliminate LLM prompt-injection risk.
 
 ### What has NOT been implemented
 
