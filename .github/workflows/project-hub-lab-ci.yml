@@ -6,10 +6,12 @@ on:
   push:
     branches:
       - feat/project-hub-hermes-delegation
+      - feat/project-hub-agent-intelligence
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - feat/project-hub-design-views
+      - feat/project-hub-hermes-delegation
     paths:
       - '.github/workflows/project-hub-lab-ci.yml'
       - 'src/main/project-hub/**'
@@ -18,6 +20,7 @@ on:
       - 'src/shared/project-hub*'
       - 'src/shared/project-hub-souls/**'
       - 'src/types/project-hub-soul-raw.d.ts'
+      - 'src/renderer/src/components/right-sidebar/ProjectHubIntelligencePanel.tsx'
       - 'docs/project-hub/**'
 
 permissions:
@@ -66,7 +69,13 @@ jobs:
             src/shared/project-hub-delegation.test.ts \
             src/shared/project-hub-delegation-capacity.ts \
             src/shared/project-hub-delegation-capacity.test.ts \
+            src/shared/project-hub-intelligence.test.ts \
             src/shared/project-hub-agent-profiles.ts \
+            src/shared/project-hub-intelligence.ts \
+            src/shared/project-hub-intelligence.test.ts \
+            src/shared/project-hub-intelligence-prompts.ts \
+            src/shared/project-hub-shared-skills.ts \
+            src/renderer/src/components/right-sidebar/ProjectHubIntelligencePanel.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubDelegationRunner.tsx \
             src/main/runtime/rpc/methods/agent-launch.ts \
             src/main/runtime/rpc/methods/agent-launch-runtime-execution.ts \
