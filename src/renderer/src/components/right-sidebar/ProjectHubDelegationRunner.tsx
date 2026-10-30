@@ -10,6 +10,9 @@ import {
 } from '../../../../shared/project-hub-delegation'
 import { createStructuredAgentSessionOperationId } from '../../../../shared/structured-agent-session-mutation'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import {
+  HUB_AGENT_PROFILES, HUB_AGENT_PROFILE_LABELS, type HubAgentProfile
+} from '../../../../shared/project-hub-agent-profiles'
 import { summarizeHubDelegationCapacity } from '../../../../shared/project-hub-delegation-capacity'
 
 type Props={
@@ -32,6 +35,7 @@ const statuses={
 export default function ProjectHubDelegationRunner({document,repoId,hostId,branch,onSave,onUpdated}:Props):React.JSX.Element{
   const [selected,setSelected]=useState<string[]>([])
   const [worker,setWorker]=useState<HubCliAgent>('opencode')
+  const [profile,setProfile]=useState<HubAgentProfile>('forge')
   const [reviewer,setReviewer]=useState<HubCliAgent|'human'>('codex')
   const [limit,setLimit]=useState(2)
   const [approved,setApproved]=useState(false)
@@ -49,7 +53,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   async function prepare():Promise<void>{
     setNotice('')
     try{
-      const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,
+      const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,profile,
         baseBranch:branch,repoId,hostId,now:new Date().toISOString(),
         mint:()=>{
           const uuid=createBrowserUuid().replaceAll('-','').toLowerCase()
@@ -165,6 +169,13 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         </select>
       </label>
     </div>
+    <label className="block text-xs">SOUL.md del ejecutor (perfil fijo, sin permisos adicionales)
+      <select className="mt-1 w-full rounded border border-border bg-background p-2"
+        value={profile} disabled={busy}
+        onChange={e=>setProfile(e.target.value as HubAgentProfile)}>
+        {HUB_AGENT_PROFILES.map(id=><option key={id} value={id}>{HUB_AGENT_PROFILE_LABELS[id]}</option>)}
+      </select>
+    </label>
     <p className="text-xs text-muted-foreground">
       El revisor queda registrado en el plan. Su sesión y la revisión automática se habilitarán en una fase posterior.
     </p>
@@ -189,7 +200,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
     {rows.length>0&&<div className="space-y-2">
       <h4 className="text-xs font-semibold">Plan registrado</h4>
       {rows.map(d=><div key={d.id} className="rounded border border-border bg-background p-2 text-xs">
-        <strong>{d.storyId}</strong> · {names[d.agent]} · {statuses[d.status]}
+        <strong>{d.storyId}</strong> · {names[d.agent]} · SOUL {d.profile??'forge (heredado)'} · {statuses[d.status]}
         <p className="break-all text-muted-foreground">{d.name} · repo {d.repoId} · host {d.hostId}{d.worktreeId?` · ${d.worktreeId}`:''}</p>
         <p className="break-all text-muted-foreground">Rama base registrada: {d.baseBranch}</p>
         {(d.status==='launching'||d.status==='unconfirmed')&&
