@@ -121,7 +121,7 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
   const blockerIds = new Set<string>()
   const memoryIds = new Set<string>()
   const allIds = new Set<string>()
-  const takeId = (row: Record<string, unknown>): boolean => {
+  const takeId = (row: { id: unknown }): boolean => {
     if (!identifier(row.id) || allIds.has(row.id)) return false
     allIds.add(row.id)
     return true
@@ -130,9 +130,9 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
     if (!isHubPlanProposal(value) || !takeId(value)) return false
     planIds.add(value.id)
     plansById.set(value.id, value)
-    // Previous proposals must precede a revision; a new plan needs a blocker.
+    // Previous plans precede their revisions; blocker references are checked below.
     if (value.previousPlanId && (!planIds.has(value.previousPlanId) ||
-      !value.blockerId || !blockerIds.has(value.blockerId))) return false
+      !value.blockerId)) return false
   }
   for (const value of blockers) {
     if (!record(value) || !takeId(value) || !identifier(value.planId) ||
