@@ -4,7 +4,7 @@ import type { HubDocument } from '../../../../shared/project-hub-types'
 import {
   emptyHubIntelligence, isHubIntelligence, approvedHubMemories,
   type HubIntelligence, type HubHumanDecision, type HubBlocker,
-  type HubMemoryCandidate, type HubQualityReview
+  type HubMemoryCandidate, type HubQualityReview, type HubPlanProposal
 } from '../../../../shared/project-hub-intelligence'
 import {
   parseAtlasPlanJson, renderAtlasPlanningPrompt, renderQaReviewPrompt
@@ -16,6 +16,44 @@ const field = 'w-full rounded border border-border bg-background p-2 text-xs'
 const action = 'rounded border border-border bg-muted px-3 py-2 text-xs disabled:opacity-40'
 const stamp = (): string => new Date().toISOString()
 const newId = (prefix: string): string => `${prefix}-${createBrowserUuid().replaceAll('-', '')}`
+
+const planLabel = (plan: HubPlanProposal): string =>
+  `${plan.objective.slice(0, 85)} · ${plan.previousPlanId ? 'Replanificación' : 'Plan inicial'} · ${plan.tasks.length} tareas`
+
+type DecisionEditorProps = {
+  subject: HubHumanDecision['subject']
+  subjectId: string
+  busy: boolean
+  onDecide: (subject: HubHumanDecision['subject'], subjectId: string, verdict: HubHumanDecision['verdict'], justification: string) => Promise<boolean>
+}
+
+/** Keep each approval's justification beside its target. Never silently authorize execution. */
+function DecisionEditor({ subject, subjectId, busy, onDecide }: DecisionEditorProps): React.JSX.Element {
+  const [justification, setJustification] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
+  const eligible = !busy && confirmed && justification.trim().length >= 5
+  const noun = subject === 'plan' ? 'plan' : 'aprendizaje'
+  return <div className="mt-2 space-y-2 rounded border border-border p-2">
+    <label className="block">Justificación de la decisión sobre este {noun}
+      <textarea className={field} rows={2} value={justification} disabled={busy} maxLength={1000}
+        onChange={e => setJustification(e.target.value)} placeholder="Qué evidencia revisaste y por qué decides esto"/>
+    </label>
+    <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} disabled={busy}
+      onChange={e => setConfirmed(e.target.checked)}/>
+      Confirmo que revisé esta propuesta. La decisión no ejecuta agentes ni verifica CI
+    </label>
+    <div className="flex flex-wrap gap-2">
+      <button className={action} type="button" disabled={!eligible}
+        onClick={() => void onDecide(subject, subjectId, 'accepted', justification)}>
+        Aprobar {noun}
+      </button>
+      <button className={action} type="button" disabled={!eligible}
+        onClick={() => void onDecide(subject, subjectId, 'rejected', justification)}>
+        Rechazar {noun}
+      </button>
+    </div>
+  </div>
+}
 
 export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props): React.JSX.Element {
   const state = doc.intelligence ?? emptyHubIntelligence()
@@ -29,8 +67,6 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
   const [lesson, setLesson] = useState('')
   const [applicability, setApplicability] = useState('')
   const [memoryEvidence, setMemoryEvidence] = useState('')
-  const [decisionNote, setDecisionNote] = useState('')
-  const [confirmed, setConfirmed] = useState(false)
   const [qaPlan, setQaPlan] = useState('')
   const [qaTask, setQaTask] = useState('')
   const [qaEvidence, setQaEvidence] = useState('')
@@ -41,7 +77,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
   const previous = state.plans.find(p => p.id === chosenBlocker?.planId)
   const blockPlan = state.plans.find(p => p.id === planForBlocker)
   const reviewPlan = state.plans.find(p => p.id === qaPlan)
-  const decided = new Set(state.decisions.map(d => `${d.subject}:${d.subjectId}`))
+  const decisions = new Map(state.decisions.map(d => [`${d.subject}:${d.subjectId}`, d]))
   async function persist(next: HubIntelligence, success: string): Promise<boolean> {
     if (!isHubIntelligence(next)) { setNotice('Registro inválido: revisa IDs, DAG y evidencia.'); return false }
     const ok = await onSave({ ...doc, intelligence: next })
@@ -87,16 +123,14 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
       setLesson(''); setApplicability(''); setMemoryEvidence('')
     }
   }
-  async function decide(subject: HubHumanDecision['subject'], subjectId: string, verdict: HubHumanDecision['verdict']): Promise<void> {
-    if (!confirmed || decisionNote.trim().length < 5) { setNotice('Confirma la revisión y justifica la decisión.'); return }
+  async function decide(subject: HubHumanDecision['subject'], subjectId: string, verdict: HubHumanDecision['verdict'], justification: string): Promise<boolean> {
+    if (justification.trim().length < 5) { setNotice('La decisión requiere una justificación.'); return false }
     const entry: HubHumanDecision = {
       id: newId('decision'), subject, subjectId, verdict,
-      justification: decisionNote.trim(), createdAt: stamp()
+      justification: justification.trim(), createdAt: stamp()
     }
-    if (await persist({ ...state, decisions: [...state.decisions, entry] },
-      'Decisión humana registrada. No crea Run ni despliega código.')) {
-      setConfirmed(false); setDecisionNote('')
-    }
+    return persist({ ...state, decisions: [...state.decisions, entry] },
+      'Decisión humana registrada; no se inició ningún agente ni se verificó CI.')
   }
   async function addReview(): Promise<void> {
     if (!reviewPlan?.tasks.some(t => t.id === qaTask)) { setNotice('Selecciona una tarea para QA.'); return }
@@ -107,7 +141,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
     }
     if (await persist({ ...state, reviews: [...state.reviews, review] },
       'Informe QA registrado como declaración humana, no como CI verificado.')) {
-      setQaFindings('')
+      setQaFindings(''); setQaEvidence(''); setQaVerdict('inconclusive')
     }
   }
   return <section className="space-y-3 text-xs">
@@ -123,7 +157,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
         <select className={field} value={blockerForReplan} disabled={busy}
           onChange={e => setBlockerForReplan(e.target.value)}>
           <option value="">Plan inicial</option>
-          {state.blockers.map(b => <option value={b.id} key={b.id}>{b.taskId} · {b.id}</option>)}
+          {state.blockers.map(b => <option value={b.id} key={b.id}>{state.plans.find(p => p.id === b.planId)?.objective.slice(0, 55) ?? 'Plan'} · {b.taskId}: {b.observation.slice(0, 60)}</option>)}
         </select>
       </label>
       <button className={action} type="button" disabled={busy}
@@ -137,31 +171,26 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
       </label>
       <button className={action} type="button" disabled={busy||!rawPlan.trim()||state.plans.length>=30}
         onClick={() => void importPlan()}>Validar DAG y guardar propuesta</button>
-      {state.plans.map(p => <div className="rounded border border-border p-2" key={p.id}>
-        <strong>{p.objective}</strong>
-        <p className="text-muted-foreground">{p.id} · {p.tasks.length} tareas · {p.previousPlanId?'Revisión propuesta':'Plan inicial'}</p>
-        <p>{p.tasks.map(t => `${t.id} (${t.role}): ${t.dependsOn.join(', ')||'sin bloqueos'}`).join(' · ')}</p>
-        <p>{decided.has(`plan:${p.id}`) ? 'Decisión registrada (ver historial)' : 'Pendiente de decisión humana'}</p>
-        {!decided.has(`plan:${p.id}`) && <div className="mt-2 flex gap-2">
-          <button className={action} type="button" disabled={busy||!confirmed||decisionNote.trim().length<5}
-            onClick={() => void decide('plan',p.id,'accepted')}>Aceptar propuesta</button>
-          <button className={action} type="button" disabled={busy||!confirmed||decisionNote.trim().length<5}
-            onClick={() => void decide('plan',p.id,'rejected')}>Rechazar</button>
-        </div>}
-      </div>)}
-      <label className="block">Justificación de decisión
-        <textarea className={field} value={decisionNote} disabled={busy} maxLength={1000}
-          onChange={e => setDecisionNote(e.target.value)} rows={2}/>
-      </label>
-      <label className="flex gap-2"><input type="checkbox" checked={confirmed} disabled={busy}
-        onChange={e => setConfirmed(e.target.checked)}/> Confirmo revisión humana de la propuesta o memoria</label>
+      {state.plans.map(p => {
+        const decision = decisions.get(`plan:${p.id}`)
+        return <div className="rounded border border-border p-2" key={p.id}>
+          <strong>{p.objective}</strong>
+          <p className="text-muted-foreground">{p.previousPlanId ? 'Replanificación' : 'Plan inicial'} · {p.tasks.length} tareas</p>
+          <ul className="ml-4 list-disc">{p.tasks.map(t => <li key={t.id}>
+            {t.title} ({t.role}) · {t.dependsOn.length ? `Depende de: ${t.dependsOn.join(', ')}` : 'Sin dependencias'}
+          </li>)}</ul>
+          {decision ? <p className="mt-2 text-muted-foreground">
+            {decision.verdict === 'accepted' ? 'Aprobado manualmente' : 'Rechazado manualmente'} · {decision.justification}
+          </p> : <DecisionEditor subject="plan" subjectId={p.id} busy={busy} onDecide={decide}/>} 
+        </div>
+      })}
     </section>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Bloqueos · replanificación supervisada</h4>
       <select className={field} value={planForBlocker} disabled={busy}
         onChange={e => {setPlanForBlocker(e.target.value);setTaskForBlocker('')}}>
         <option value="">Seleccionar plan</option>
-        {state.plans.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
+        {state.plans.map(p => <option key={p.id} value={p.id}>{planLabel(p)}</option>)}
       </select>
       <select className={field} value={taskForBlocker} disabled={busy}
         onChange={e => setTaskForBlocker(e.target.value)}>
@@ -186,50 +215,73 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
         onChange={e => setMemoryEvidence(e.target.value)} placeholder="Archivo, test, commit o evidencia verificable"/>
       <button className={action} type="button" disabled={busy||lesson.trim().length<5||applicability.trim().length<5||memoryEvidence.trim().length<5}
         onClick={() => void addMemory()}>Proponer aprendizaje</button>
-      {state.memories.map(m => <div key={m.id} className="rounded border border-border p-2">
-        <p><strong>{m.lesson}</strong></p><p className="text-muted-foreground">{m.evidenceRef}</p>
-        {decided.has(`memory:${m.id}`) ? <p>Decisión ya registrada</p> :
-          <div className="mt-2 flex gap-2">
-            <button className={action} type="button" disabled={busy||!confirmed||decisionNote.trim().length<5}
-              onClick={() => void decide('memory',m.id,'accepted')}>Verificar y aprobar</button>
-            <button className={action} type="button" disabled={busy||!confirmed||decisionNote.trim().length<5}
-              onClick={() => void decide('memory',m.id,'rejected')}>Rechazar</button>
-          </div>}
-      </div>)}
+      {state.memories.map(m => {
+        const decision = decisions.get(`memory:${m.id}`)
+        return <div key={m.id} className="rounded border border-border p-2">
+          <p><strong>{m.lesson}</strong></p>
+          <p className="text-muted-foreground">Aplicación: {m.applicability}</p>
+          <p className="text-muted-foreground">Evidencia declarada: {m.evidenceRef}</p>
+          {decision ? <p className="mt-2 text-muted-foreground">
+            {decision.verdict === 'accepted' ? 'Aprendizaje aprobado manualmente' : 'Aprendizaje rechazado'} · {decision.justification}
+          </p> : <DecisionEditor subject="memory" subjectId={m.id} busy={busy} onDecide={decide}/>} 
+        </div>
+      })}
     </section>
-    <section className="space-y-2 rounded-lg border border-border bg-card p-3">
-      <h4 className="font-semibold">QA · revisión independiente</h4>
-      <p>Se registra evidencia humana; copiar el prompt no inicia un revisor.</p>
-      <select className={field} disabled={busy} value={qaPlan}
-        onChange={e => {setQaPlan(e.target.value);setQaTask('')}}>
-        <option value="">Seleccionar plan</option>
-        {state.plans.map(p => <option value={p.id} key={p.id}>{p.id}</option>)}
-      </select>
-      <select className={field} disabled={busy} value={qaTask}
-        onChange={e => setQaTask(e.target.value)}>
-        <option value="">Seleccionar tarea</option>
-        {reviewPlan?.tasks.map(t => <option value={t.id} key={t.id}>{t.id} · {t.title}</option>)}
-      </select>
-      <input className={field} disabled={busy} value={qaEvidence} maxLength={600}
-        onChange={e => setQaEvidence(e.target.value)} placeholder="Ref. commit/diff/checks verificados"/>
-      <button className={action} type="button" disabled={busy||!reviewPlan||!qaTask||qaEvidence.trim().length<5}
-        onClick={() => reviewPlan && void copy(renderQaReviewPrompt(doc,reviewPlan,qaTask,qaEvidence))}>
-        Copiar encargo QA independiente
+    <section className="space-y-3 rounded-lg border border-border bg-card p-3">
+      <h4 className="font-semibold">QA · revisión guiada</h4>
+      <p className="text-muted-foreground">Registro manual. No existe todavía un revisor automático ni consulta verificada de CI.</p>
+      <label className="block">1. ¿Qué plan revisaremos?
+        <select aria-label="Plan para QA" className={field} disabled={busy} value={qaPlan}
+          onChange={e => {setQaPlan(e.target.value);setQaTask('')}}>
+          <option value="">Seleccionar plan</option>
+          {state.plans.map(p => <option value={p.id} key={p.id}>{planLabel(p)}</option>)}
+        </select>
+      </label>
+      <label className="block">2. ¿Qué tarea revisaremos?
+        <select aria-label="Tarea para QA" className={field} disabled={busy || !reviewPlan} value={qaTask}
+          onChange={e => setQaTask(e.target.value)}>
+          <option value="">Seleccionar tarea</option>
+          {reviewPlan?.tasks.map(t => <option value={t.id} key={t.id}>{t.title} · {t.role} ({t.id})</option>)}
+        </select>
+      </label>
+      {reviewPlan?.tasks.filter(t => t.id === qaTask).map(t =>
+        <p key={t.id} className="rounded border border-border p-2 text-muted-foreground">Criterio de aceptación: {t.acceptance}</p>)}
+      <label className="block">3. Evidencia que revisará QA
+        <input className={field} disabled={busy || !qaTask} value={qaEvidence} maxLength={600}
+          onChange={e => setQaEvidence(e.target.value)}
+          placeholder="SHA de commit, diff, test o URL de CI (referencia, no verificada)"/>
+      </label>
+      <button className={action} type="button" disabled={busy || !reviewPlan || !qaTask || qaEvidence.trim().length < 5}
+        onClick={() => reviewPlan && void copy(renderQaReviewPrompt(doc, reviewPlan, qaTask, qaEvidence))}>
+        Copiar encargo para QA externo (no ejecuta el agente)
       </button>
-      <select className={field} disabled={busy} value={qaVerdict}
-        onChange={e => setQaVerdict(e.target.value as HubQualityReview['verdict'])}>
-        <option value="inconclusive">Sin evidencia suficiente</option>
-        <option value="changes-requested">Solicita correcciones</option>
-        <option value="approved">Aprobación declarada manualmente</option>
-      </select>
-      <textarea className={field} disabled={busy} value={qaFindings} maxLength={2000}
-        onChange={e => setQaFindings(e.target.value)} placeholder="Hallazgos concretos, archivos y pruebas"/>
+      <label className="block">4. Resultado de la revisión manual
+        <select aria-label="Resultado de QA" className={field} disabled={busy || !qaTask} value={qaVerdict}
+          onChange={e => setQaVerdict(e.target.value as HubQualityReview['verdict'])}>
+          <option value="inconclusive">Sin evidencia suficiente</option>
+          <option value="changes-requested">Solicitar correcciones</option>
+          <option value="approved">Aprobación declarada por una persona</option>
+        </select>
+      </label>
+      <label className="block">Hallazgos y comprobaciones realizadas
+        <textarea className={field} disabled={busy || !qaTask} value={qaFindings} maxLength={2000}
+          onChange={e => setQaFindings(e.target.value)} placeholder="Qué revisaste, qué pasó y qué falta"/>
+      </label>
       <button className={action} type="button"
-        disabled={busy||!qaTask||qaEvidence.trim().length<5||qaFindings.trim().length<5}
-        onClick={() => void addReview()}>Registrar revisión humana</button>
-      {state.reviews.map(r => <p key={r.id} className="rounded border border-border p-2">
-        {r.planId}/{r.taskId} · {r.verdict} · {r.findings}
-      </p>)}
+        disabled={busy || !reviewPlan || !qaTask || qaEvidence.trim().length < 5 || qaFindings.trim().length < 5}
+        onClick={() => void addReview()}>Registrar resultado manual (sin verificar CI)</button>
+      <h5 className="font-semibold">Revisiones anteriores</h5>
+      {state.reviews.map(r => {
+        const p = state.plans.find(candidate => candidate.id === r.planId)
+        const t = p?.tasks.find(candidate => candidate.id === r.taskId)
+        return <div key={r.id} className="rounded border border-border p-2">
+          <p><strong>{t?.title ?? r.taskId}</strong> · {p?.objective ?? r.planId}</p>
+          <p>{r.verdict === 'approved' ? 'Aprobación declarada' : r.verdict === 'changes-requested' ? 'Correcciones solicitadas' : 'Sin evidencia suficiente'} · revisión {r.reviewer === 'human' ? 'humana' : 'QA'}</p>
+          <p className="text-muted-foreground">Evidencia declarada: {r.evidenceRef}</p>
+          <p>{r.findings}</p>
+        </div>
+      })}
+      {!state.reviews.length && <p className="text-muted-foreground">Aún no hay revisiones registradas.</p>}
     </section>
     <section className="rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Historial de decisiones (append-only)</h4>
