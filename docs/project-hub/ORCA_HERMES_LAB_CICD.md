@@ -20,15 +20,15 @@ No se deben inventar estados de finalización, ni marcar `worker_done` sin el Di
 
 ## CI en el fork
 
-`.github/workflows/project-hub-lab-ci.yml` ejecuta en `ubuntu-latest` con `contents:read`, sin secretos, en cada push a `feat/project-hub-hermes-delegation` y en PR a su base de desarrollo. **También se ejecuta estando Draft**.
+`.github/workflows/project-hub-lab-ci.yml` ejecuta en `ubuntu-latest` y `windows-latest` con `contents:read`, sin secretos, en cada push a `feat/project-hub-hermes-delegation` y en PR a su base de desarrollo. **También se ejecuta estando Draft**.
 
 Fases:
 1. Instalación reproducible: Node 24, pnpm fijado por repo y preparación del runtime nativo mediante la acción existente.
 2. Lint focalizado en límites de Project Hub y launcher.
 3. `pnpm typecheck` integral.
-4. Vitest focalizado: delegación, cupos, persistencia y garantías de replay/at-most-once.
-5. `pnpm run build:electron-vite` (main + preload + renderer).
-6. Artefacto temporal `out/` para inspección de la compilación, **no instalable**, 3 días de retención.
+4. Vitest focalizado en ambas plataformas: delegación, cupos, persistencia y garantías de replay/at-most-once. Windows comprueba explícitamente las regresiones de SQLite `EBUSY`.
+5. `pnpm run build:electron-vite` en Linux (main + preload + renderer).
+6. Artefacto temporal `out/` de la lane Linux para inspección de la compilación, **no instalable**, 3 días de retención.
 
 No hay `pull_request_target`, token de escritura, publicación de releases, `push` a ramas, merge, IIS, Dokploy, servidor o VM. No constituye todavía CD productivo.
 
