@@ -3,6 +3,7 @@ import type { HubDocument } from './project-hub-types'
 import type { HubPlanProposal, HubBlocker } from './project-hub-intelligence'
 import { isHubPlanProposal, approvedHubMemories } from './project-hub-intelligence'
 import { hubAgentSoul } from './project-hub-agent-profiles'
+import { retrieveHubSharedSkills } from './project-hub-shared-skills'
 
 export function renderAtlasPlanningPrompt(
   document: HubDocument,
@@ -15,6 +16,9 @@ export function renderAtlasPlanningPrompt(
   }
   const memories = document.intelligence ?
     approvedHubMemories(document.intelligence).slice(-5) : []
+  const query = [document.blueprint.idea, document.blueprint.problem,
+    ...document.items.map(i => i.title + ' ' + i.acceptance)].join(' ')
+  const sharedSkills = retrieveHubSharedSkills(query)
   const lines = [
     '# Atlas: propose a plan, never execute it',
     hubAgentSoul('atlas'),
@@ -25,7 +29,8 @@ export function renderAtlasPlanningPrompt(
     `Problem: ${document.blueprint.problem.slice(0, 1500)}`,
     ...document.items.slice(0, 30).map(i =>
       `Story ${i.id}: ${i.title}; acceptance: ${i.acceptance.slice(0, 400)}`),
-    ...memories.map(m => `Approved learning: ${m.lesson.slice(0, 600)} (evidence: ${m.evidenceRef.slice(0, 180)})`),
+    ...memories.map(m => `Approved project learning: ${m.lesson.slice(0, 600)} (evidence: ${m.evidenceRef.slice(0, 180)})`),
+    ...sharedSkills.map(skill => `Repository-reviewed skill: ${skill.title}; ${skill.lesson}; evidence: ${skill.evidence.join(', ')}`),
     ...(previous && blocker ? [
       `Previous plan: ${JSON.stringify(previous).slice(0, 10_000)}`,
       `Reported blocker: ${blocker.observation}; suggested: ${blocker.recommendedAction}`
