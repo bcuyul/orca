@@ -29,9 +29,16 @@ concurrency:
 
 jobs:
   validate:
-    name: TypeScript, lint, contracts and Electron build
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    name: TypeScript, lint, contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout non-privileged source
         uses: actions/checkout@v6
@@ -80,11 +87,13 @@ jobs:
             src/main/agent-launch/agent-launch-executor.test.ts
 
       - name: Compile Electron main, preload and renderer (no installer, no deployment)
+        if: runner.os == 'Linux'
         env:
           ORCA_CI_MAIN_SOURCEMAPS: '0'
         run: pnpm run build:electron-vite
 
       - name: Publish non-installable lab build for inspection only
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: orca-project-hub-lab-${{ github.sha }}
