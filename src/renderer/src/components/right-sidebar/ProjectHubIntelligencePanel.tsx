@@ -77,7 +77,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
   const previous = state.plans.find(p => p.id === chosenBlocker?.planId)
   const blockPlan = state.plans.find(p => p.id === planForBlocker)
   const reviewPlan = state.plans.find(p => p.id === qaPlan)
-  const decisions = new Map(state.decisions.map(d => [`${d.subject}:${d.subjectId}`, d]))
+  const decisions = new Map(state.decisions.map(d => [`${d.subject}:${d.subjectId}`, d] as const))
   async function persist(next: HubIntelligence, success: string): Promise<boolean> {
     if (!isHubIntelligence(next)) { setNotice('Registro inválido: revisa IDs, DAG y evidencia.'); return false }
     const ok = await onSave({ ...doc, intelligence: next })
