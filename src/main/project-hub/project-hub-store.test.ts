@@ -112,6 +112,27 @@ describe('ProjectHubStore',()=>{
       ...launched.delegations![0],agent:'claude'
     }]},4)).toThrow(/Delegation history/)
   })
+  it('persists intelligence proposals without allowing old evidence to be rewritten',()=>{
+    const db=new ProjectHubStore(root)
+    const id='repo:intelligence'
+    const current=db.save(id,emptyProjectHub(id),0)
+    const plan={id:'plan-a',objective:'Develop isolated orca workers',
+      rationale:'Need consistent host ownership',source:'human' as const,
+      tasks:[{id:'worker-a',title:'Develop launch contract',role:'forge' as const,
+        dependsOn:[],acceptance:'Typecheck and replay tests pass'}],
+      createdAt:new Date().toISOString()}
+    const withPlan=db.save(id,{...current,intelligence:{
+      plans:[plan],blockers:[],memories:[],reviews:[],decisions:[]
+    }},1)
+    expect(withPlan.intelligence?.plans).toHaveLength(1)
+    expect(()=>db.save(id,{...withPlan,intelligence:undefined},2)).toThrow(/append-only/)
+    expect(()=>db.save(id,{...withPlan,intelligence:{
+      ...withPlan.intelligence!,plans:[{...plan,rationale:'Rewritten evidence'}]
+    }},2)).toThrow(/append-only/)
+    const after=db.read(id)
+    expect(after.revision).toBe(2)
+    expect(after.intelligence?.plans[0].rationale).toBe(plan.rationale)
+  })
   it('fails closed if existing JSON is corrupted',()=>{
     const store=new ProjectHubStore(root)
     const path=hubFilePath(root,'repo:one')
