@@ -69,7 +69,6 @@ jobs:
             src/shared/project-hub-delegation.test.ts \
             src/shared/project-hub-delegation-capacity.ts \
             src/shared/project-hub-delegation-capacity.test.ts \
-            src/shared/project-hub-intelligence.test.ts \
             src/shared/project-hub-agent-profiles.ts \
             src/shared/project-hub-intelligence.ts \
             src/shared/project-hub-intelligence.test.ts \
@@ -88,6 +87,7 @@ jobs:
         run: |
           pnpm exec vitest run --config config/vitest.config.ts \
             src/shared/project-hub-delegation-capacity.test.ts \
+            src/shared/project-hub-intelligence.test.ts \
             src/shared/project-hub-delegation.test.ts \
             src/main/project-hub/project-hub-store.test.ts \
             src/main/runtime/rpc/methods/agent-launch.test.ts \
