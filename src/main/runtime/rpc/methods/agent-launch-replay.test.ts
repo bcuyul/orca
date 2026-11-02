@@ -85,7 +85,7 @@ const ROTATED_CREDENTIAL_CLIENT: Partial<RpcContext> = {
 let directory: string
 let store: AgentSessionRecordStore
 
-type LaunchParams = AgentLaunchFingerprintInput & { operationId?: string }
+type LaunchParams = AgentLaunchFingerprintInput & { operationId?: string; launchSource?: string }
 
 function createLaunch(overrides: Partial<LaunchParams> = {}): LaunchParams {
   return {
@@ -619,7 +619,7 @@ describe('Project Hub launch quarantine', () => {
     const runtime = runtimeStub()
     await expect(launch(createLaunch({
       launchSource: 'project-hub'
-    } as Partial<LaunchParams>), runtime)).rejects.toThrow(
+    }), runtime)).rejects.toThrow(
       'project_hub_launch_requires_verified_host_authorization'
     )
     expect(runtime.createManagedWorktree).not.toHaveBeenCalled()
