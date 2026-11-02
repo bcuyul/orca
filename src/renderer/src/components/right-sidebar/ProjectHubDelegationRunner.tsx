@@ -65,11 +65,11 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
 
 
   return <section className="space-y-3 rounded-lg border border-border bg-card p-3">
-    <h3 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4"/> Centro de ejecución</h3>
+    <h3 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4"/> Planificación de delegaciones</h3>
     <p className="text-xs text-muted-foreground">
-      Selecciona historias y autoriza el inicio. Orca creará un worktree y una sesión CLI por historia,
-      enviando las instrucciones automáticamente al agente asignado, sin copiar ni pegar.
-      El estado indica entrega inicial, no finalización ni aprobación.
+      Selecciona historias y guarda un plan de asignación para revisión.
+      Esta versión no crea worktrees, no inicia sesiones CLI y no envía instrucciones a agentes.
+      El registro de un plan no constituye una autorización de ejecución.
     </p>
     <p role="alert" className="text-xs text-destructive">
       Ejecución de agentes deshabilitada en esta integración: falta consentimiento autenticado del host y sandbox verificable. La planificación sigue disponible.
