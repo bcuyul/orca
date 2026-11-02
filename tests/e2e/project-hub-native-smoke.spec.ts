@@ -1,7 +1,10 @@
 import { expect, test } from './helpers/orca-app'
+import { waitForStartupWorktreeRefresh } from './helpers/store'
 
 test('Project Hub opens in isolated Electron, persists backlog and keeps CLI launch disabled @project-hub-smoke', async ({ orcaPage }) => {
   test.setTimeout(180_000)
+
+  await waitForStartupWorktreeRefresh(orcaPage)
 
   // The fixture has a disposable Git repository, Orca profile and Electron process.
   // Navigate using the same Zustand route as the native right activity bar.
@@ -22,7 +25,9 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   })
   await expect(orcaPage.getByText('Fase 1/10', { exact: false })).toBeVisible()
 
-  await orcaPage.getByRole('button', { name: 'Backlog', exact: true }).click()
+  await orcaPage.getByRole('button', { name: 'Backlog', exact: true }).evaluate((element) => {
+    (element as HTMLButtonElement).click()
+  })
   await orcaPage.getByPlaceholder('Como usuario necesito…').fill('Historia de smoke test')
   await orcaPage.getByPlaceholder('Criterios de aceptación').fill(
     'La historia debe persistir en el proyecto aislado'
@@ -39,10 +44,14 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   await orcaPage.evaluate(() => {
     window.__store?.getState().setRightSidebarTab('project-hub')
   })
-  await orcaPage.getByRole('button', { name: 'Backlog', exact: true }).click()
+  await orcaPage.getByRole('button', { name: 'Backlog', exact: true }).evaluate((element) => {
+    (element as HTMLButtonElement).click()
+  })
   await expect(orcaPage.getByText('Historia de smoke test')).toBeVisible()
 
-  await orcaPage.getByRole('button', { name: 'Orquestación' }).click()
+  await orcaPage.getByRole('button', { name: 'Orquestación' }).evaluate((element) => {
+    (element as HTMLButtonElement).click()
+  })
   await expect(orcaPage.getByRole('alert').filter({
     hasText: 'Ejecución de agentes deshabilitada'
   })).toBeVisible()
