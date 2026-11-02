@@ -5,7 +5,7 @@ description: Turn a project or feature goal into the smallest valuable backlog, 
 
 # Orca Adaptive Backlog
 
-Use this for a new product, module or feature. For a single small fix, skip backlog creation entirely.
+Use this for a new product, module or feature when a backlog adds value. Before using, consult the ODD-inspired `routeAdaptiveWork` advisory outcome: direct inline work does not need a backlog, and a recoverable feature document is created only when the request + diff are insufficient to resume.
 
 1. Identify the actual user, problem, desired outcome and explicit constraints. Ask one question only if a high-impact decision is unresolved; suggest a default but do not silently assume it.
 2. Identify costly-to-change choices (tenant isolation, security and roles, offline mode, external writes). Escalate these, rather than inventing a design.

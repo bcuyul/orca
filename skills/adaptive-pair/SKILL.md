@@ -5,7 +5,7 @@ description: Implement one authorized Orca story in small red-green-refactor cyc
 
 # Orca Adaptive Pair (driver/navigator)
 
-The AI is the driver; the human (or a separately authorized quality gate) is the navigator. Operate on only ONE approved task within a host-verified execution boundary.
+The AI is the driver; the human (or a separately authorized quality gate) is the navigator. Operate on only ONE approved task within a host-verified execution boundary. If the ODD advisory route is `direct_inline`, do not spin up a subagent or a feature document; if a durable record is needed, preserve the exact original requirement and decisions, without implying that a second writer is necessary.
 
 **Before writing:** verify the native Run/Task, scope, sandbox attestation and one-turn budget through Orca's host policy. A Git worktree is only code isolation, NEVER authority or a sandbox. If the host cannot establish OS-enforced filesystem/process/network restrictions, STOP. This skill cannot create those permissions.
 

@@ -5,7 +5,7 @@ description: Refine one selected Orca backlog story immediately before implement
 
 # Orca Adaptive Story
 
-Select ONE currently eligible task from the approved scope. For a micro-fix with clear reproduction, propose the shortest acceptance check and avoid unnecessary story ceremony.
+Select ONE currently eligible task from the approved scope. For a micro-fix with clear reproduction, propose the shortest acceptance check and avoid unnecessary story ceremony. Routing, feature records and delegation are separate decisions: do not manufacture a story document simply because a task is large or spans multiple files.
 
 1. Read the current code, existing tests, selected story, scope grant, actual dependencies, and current repository state.
 2. Refine two or three Given/When/Then acceptance criteria focused on observable behavior, plus failure/negative cases when authorization or data integrity is involved.
