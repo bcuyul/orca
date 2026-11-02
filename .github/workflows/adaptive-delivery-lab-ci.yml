@@ -44,4 +44,4 @@ jobs:
       - name: Benchmark deterministic reference
         run: |
           node tools/adaptive-delivery-lab/benchmark.mjs > adaptive-delivery-benchmark.actual.json
-          node -e "const fs=require('node:fs');const assert=require('node:assert/strict');assert.equal(fs.readFileSync('adaptive-delivery-benchmark.actual.json','utf8'),fs.readFileSync('tools/adaptive-delivery-lab/results.example.json','utf8'))"
+          node -e "const fs=require('node:fs');const assert=require('node:assert/strict');assert.deepStrictEqual(JSON.parse(fs.readFileSync('adaptive-delivery-benchmark.actual.json','utf8')),JSON.parse(fs.readFileSync('tools/adaptive-delivery-lab/results.example.json','utf8')))"
