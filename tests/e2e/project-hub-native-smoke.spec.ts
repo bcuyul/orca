@@ -35,6 +35,7 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   await orcaPage.evaluate(() => {
     window.__store?.getState().setRightSidebarTab('explorer')
   })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toHaveCount(0)
   await orcaPage.evaluate(() => {
     window.__store?.getState().setRightSidebarTab('project-hub')
   })
