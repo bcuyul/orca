@@ -9,7 +9,7 @@ const INIT_SQL = [
   'CREATE TABLE IF NOT EXISTS adaptive_scope_grants (id TEXT PRIMARY KEY, scope_json TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0)',
   "CREATE TABLE IF NOT EXISTS adaptive_admissions (request_id TEXT PRIMARY KEY, scope_id TEXT NOT NULL, payload_hash TEXT NOT NULL, operation TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('reserved','unknown','completed')), receipt TEXT)",
   'CREATE INDEX IF NOT EXISTS adaptive_admissions_by_scope ON adaptive_admissions(scope_id)'
-].join(';') + ';'
+].concat('').join(';')
 
 type GrantRow = { scope_json: string; revoked: number }
 type AttemptRow = { request_id: string; scope_id: string; payload_hash: string; operation: string;
@@ -70,7 +70,7 @@ export class HostAdmissionLedger {
         'SELECT COUNT(*) AS count FROM adaptive_admissions WHERE scope_id = ?'
       ).get(request.scopeId) as { count: number }
       const decision = evaluateAdaptiveScope(raw, request, counted.count, nowMs)
-      if (!decision.allowed) { throw new Error('admission_denied:' + decision.reasons.join(',')) }
+      if (!decision.allowed) { throw new Error(`admission_denied:${decision.reasons.join(',')}`) }
       this.database.db.prepare(
         "INSERT INTO adaptive_admissions (request_id,scope_id,payload_hash,operation,state) VALUES (?,?,?,?,'reserved')"
       ).run(request.requestId,request.scopeId,hash,request.operation)
