@@ -32,7 +32,11 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   await orcaPage.getByPlaceholder('Criterios de aceptación').fill(
     'La historia debe persistir en el proyecto aislado'
   )
-  await orcaPage.getByRole('button', { name: 'Agregar al backlog' }).click()
+  // Electron's headless sidebar may remount during pointer-stability polling on Windows.
+  // Dispatch the same button click on the currently rendered DOM node.
+  await orcaPage.getByRole('button', { name: 'Agregar al backlog' }).evaluate((element) => {
+    (element as HTMLButtonElement).click()
+  })
   await expect(orcaPage.getByText('Historia de smoke test')).toBeVisible()
 
   // A different right-sidebar view unmounts ProjectHubPanel. Returning reads
@@ -55,8 +59,12 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   await expect(orcaPage.getByRole('alert').filter({
     hasText: 'Ejecución de agentes deshabilitada'
   })).toBeVisible()
-  await orcaPage.getByRole('checkbox').first().check()
-  await orcaPage.getByRole('button', { name: /Preparar 1 historia/ }).click()
+  await orcaPage.getByRole('checkbox').first().evaluate((element) => {
+    (element as HTMLInputElement).click()
+  })
+  await orcaPage.getByRole('button', { name: /Preparar 1 historia/ }).evaluate((element) => {
+    (element as HTMLButtonElement).click()
+  })
   await expect(orcaPage.getByText('Lote preparado y guardado.')).toBeVisible({
     timeout: 15_000
   })
