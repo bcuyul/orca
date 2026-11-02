@@ -231,6 +231,12 @@ export const AGENT_LAUNCH_METHODS = [
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
+      // The Project Hub UI has no host-attested sandbox or independent launch consent yet.
+      // launchSource is only a caller label: this quarantines the Project Hub integration,
+      // not a security boundary for arbitrary clients or existing manual launch flows.
+      if (params.launchSource === 'project-hub') {
+        throw new Error('project_hub_launch_requires_verified_host_authorization')
+      }
       assertAgentLaunchTargetAuthorized(params.target, context)
       try {
         return await runReplaySafeAgentLaunch(params, context)
@@ -261,6 +267,12 @@ export const AGENT_LAUNCH_METHODS = [
     handler: async (params, context): Promise<AgentLaunchResult> => {
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_unsupported')
+      }
+      // The Project Hub UI has no host-attested sandbox or independent launch consent yet.
+      // launchSource is only a caller label: this quarantines the Project Hub integration,
+      // not a security boundary for arbitrary clients or existing manual launch flows.
+      if (params.launchSource === 'project-hub') {
+        throw new Error('project_hub_launch_requires_verified_host_authorization')
       }
       assertAgentLaunchTargetAuthorized(params.target, context)
       if (!params.operationId) {
