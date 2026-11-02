@@ -143,6 +143,9 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       enviando las instrucciones automáticamente al agente asignado, sin copiar ni pegar.
       El estado indica entrega inicial, no finalización ni aprobación.
     </p>
+    <p role="alert" className="text-xs text-destructive">
+      Ejecución de agentes deshabilitada en esta integración: falta consentimiento autenticado del host y sandbox verificable. La planificación sigue disponible.
+    </p>
     {!local&&<p role="alert" className="text-xs text-destructive">
       Lanzamiento deshabilitado en hosts remotos: falta enlace RPC específico al host. Solo planificación permitida.
     </p>}
@@ -219,7 +222,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         <input type="checkbox" checked={approved} disabled={busy} onChange={e=>setApproved(e.target.checked)}/>
         Autorizo crear nuevos worktrees y ejecutar los agentes CLI seleccionados. No autorizo merge ni despliegue.
       </label>
-      <button type="button" className={button} disabled={!approved||busy||!local||slots<1}
+      <button type="button" className={button} disabled={true}
         onClick={()=>void launchBatch()}>
         <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones a {Math.min(slots,pending.length)} agente(s)
       </button>
