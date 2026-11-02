@@ -31,6 +31,18 @@ export class ProjectHubStore {
     const prev=this.read(projectId)
     if(!Number.isSafeInteger(expectedRevision)||prev.revision!==expectedRevision||incoming.revision!==expectedRevision) { throw new Error('Conflict: reload Project Hub before saving') }
     if(!isHubDelegationTransition(prev.delegations??[],incoming.delegations??[])) { throw new Error('Delegation history cannot be deleted, reassigned or skip launch reservation') }
+    // Project Hub IPC accepts renderer-authored documents, not host-authenticated CLI
+    // receipts. Keep launch facts immutable until an independent main-process-only
+    // transition path verifies the runtime evidence. Existing rows stay readable.
+    if ((prev.delegations ?? []).some((before, index) => {
+      const after = incoming.delegations?.[index]
+      return !after || before.status !== after.status ||
+        before.worktreeId !== after.worktreeId ||
+        before.terminalHandle !== after.terminalHandle ||
+        before.warning !== after.warning
+    })) {
+      throw new Error('Delegation launch state requires host-verified evidence')
+    }
     if(!isHubIntelligenceTransition(prev.intelligence,incoming.intelligence)) { throw new Error('Intelligence evidence is append-only: revisions require new records') }
     // Approvals are append-only; phase changes require a gate and one matching record.
     if (JSON.stringify(incoming.approvals.slice(0,prev.approvals.length))!==JSON.stringify(prev.approvals)) { throw new Error('Approval history cannot be rewritten') }
