@@ -115,6 +115,13 @@ jobs:
           else
             pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
           fi
+      - name: Verify visible Electron mouse interactions on Ubuntu Xvfb
+        if: runner.os == 'Linux'
+        env:
+          CI: 'true'
+          ORCA_BACKGROUND_LAUNCH: '1'
+          ORCA_E2E_FORCE_HEADFUL: '1'
+        run: xvfb-run -a pnpm exec playwright test tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
       - name: Attach Electron Playwright failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
