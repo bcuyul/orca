@@ -11,9 +11,9 @@ const plan: HubPlanProposal = {
   id:'plan-1',objective:'Deliver a booking use case',rationale:'Persist and validate the user flow',
   source:'human',createdAt:'2026-11-02T10:00:00Z',
   tasks:[
-    {id:'C',title:'Validate booking',role:'qa',dependsOn:['B'],acceptance:'Booking case verified'},
-    {id:'B',title:'Create booking',role:'forge',dependsOn:['A'],acceptance:'Create booking works'},
-    {id:'A',title:'Build storage',role:'data',dependsOn:[],acceptance:'Storage persists bookings'}
+    {id:'task-c',title:'Validate booking',role:'qa',dependsOn:['task-b',acceptance:'Booking case verified'},
+    {id:'task-b',title:'Create booking',role:'forge',dependsOn:['task-a',acceptance:'Create booking works'},
+    {id:'task-a',title:'Build storage',role:'data',dependsOn:[],acceptance:'Storage persists bookings'}
   ]
 }
 const hash = createHash('sha256').update(JSON.stringify(plan)).digest('hex')
@@ -21,11 +21,11 @@ const clock = Date.parse('2026-11-02T12:00:00Z')
 const admission: AdaptiveRequest = {
   requestId:'materialize-1', scopeId:'scope-1',projectId:'project-1',repoId:'repo-1',
   hostId:'local',baseSha:'a'.repeat(40),planId:plan.id,planSha:hash,
-  taskIds:['A','B','C'],operation:'materialize_run'
+  taskIds:['task-a','task-b','task-c'],operation:'materialize_run'
 }
 const scope: AdaptiveScope = {
   projectId:admission.projectId, repoId:admission.repoId,hostId:admission.hostId,
-  baseSha:admission.baseSha,planId:plan.id,planSha:hash,allowedTaskIds:['A','B','C'],
+  baseSha:admission.baseSha,planId:plan.id,planSha:hash,allowedTaskIds:['task-a','task-b','task-c'],
   operations:['materialize_run'],maxOperations:1,expiresAt:'2099-01-01T00:00:00Z'
 }
 const buildDoc = (approved=true): HubDocument => ({
@@ -56,9 +56,9 @@ describe('native plan materializer: real Run/Task rows, no workers',()=>{
     const result = bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})
     expect(result.dispatched).toBe(false)
     expect(db.getRun(result.runId)?.id).toBe(result.runId)
-    const a = db.getTask(result.tasks.A)
-    const b = db.getTask(result.tasks.B)
-    const c = db.getTask(result.tasks.C)
+    const a = db.getTask(result.tasks['task-a'])
+    const b = db.getTask(result.tasks['task-b'])
+    const c = db.getTask(result.tasks['task-c'])
     expect(a?.status).toBe('ready')
     expect(b?.status).toBe('pending')
     expect(c?.status).toBe('pending')
@@ -79,7 +79,7 @@ describe('native plan materializer: real Run/Task rows, no workers',()=>{
     ledger.recordHostApproval('scope-1',scope)
     expect(()=>bridge.materialize({admission,expectedHubRevision:1,nowMs:clock})).toThrow(/revision/)
     expect(()=>bridge.materialize({admission:{...admission,planSha:'f'.repeat(64)},expectedHubRevision:2,nowMs:clock})).toThrow(/SHA/)
-    expect(()=>bridge.materialize({admission:{...admission,taskIds:['A']},expectedHubRevision:2,nowMs:clock})).toThrow(/Complete plan/)
+    expect(()=>bridge.materialize({admission:{...admission,taskIds:['task-a']},expectedHubRevision:2,nowMs:clock})).toThrow(/Complete plan/)
     expect(ledger.getReservation(admission.requestId)).toBeUndefined()
   }))
   it('on mid-creation failure preserves checkpoint and unknown, never repeats',()=>harness(({db,ledger,bridge})=>{
