@@ -18,6 +18,8 @@ export type NativeMaterialization = {
   tasks: Record<string, string>
   /** This is not a Coordinator execution, agent launch, or QA. */
   dispatched: false
+  /** Immutable identity from the host-validated materialization request. */
+  provenance: Pick<AdaptiveRequest, 'projectId' | 'repoId' | 'hostId' | 'baseSha' | 'planSha'>
 }
 type PlanReader = { read(projectId: string): HubDocument }
 
@@ -61,7 +63,12 @@ export class NativePlanMaterializer {
       const result = JSON.parse(reservation.receipt) as NativeMaterialization
       if (!result || result.planId !== plan.id || !this.db.getRun(result.runId) ||
           Object.entries(result.tasks).length !== plan.tasks.length ||
-          !Object.values(result.tasks).every(id => this.db.getTask(id)?.run_id === result.runId)) {
+          !Object.values(result.tasks).every(id => this.db.getTask(id)?.run_id === result.runId) ||
+          !result.provenance || result.provenance.projectId !== request.projectId ||
+          result.provenance.repoId !== request.repoId ||
+          result.provenance.hostId !== request.hostId ||
+          result.provenance.baseSha !== request.baseSha ||
+          result.provenance.planSha !== request.planSha) {
         throw new Error('Completed receipt stale or corrupt; reconcile')
       }
       return result
@@ -93,7 +100,13 @@ export class NativePlanMaterializer {
         tasks[task.id] = native.id
         this.ledger.checkpoint(request.requestId, JSON.stringify({ stage:'creating',runId:run.id,tasks }))
       }
-      const result: NativeMaterialization = { runId:run.id, planId:plan.id, tasks, dispatched:false }
+      const result: NativeMaterialization = {
+        runId: run.id, planId: plan.id, tasks, dispatched: false,
+        provenance: {
+          projectId: request.projectId, repoId: request.repoId, hostId: request.hostId,
+          baseSha: request.baseSha, planSha: request.planSha
+        }
+      }
       this.ledger.complete(request.requestId,JSON.stringify(result))
       return result
     } catch(error) {
