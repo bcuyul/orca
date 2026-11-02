@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { OrchestrationDb } from '../orchestration/db/orchestration-db'
-import type { HubDocument } from '../../../../shared/project-hub-types'
-import { isHubDocument } from '../../../../shared/project-hub-types'
-import { isHubPlanProposal, type HubPlanProposal } from '../../../../shared/project-hub-intelligence'
-import type { AdaptiveRequest } from '../../../../shared/adaptive-delivery/admission-contracts'
+import type { HubDocument } from '../../../shared/project-hub-types'
+import { isHubDocument } from '../../../shared/project-hub-types'
+import { isHubPlanProposal, type HubPlanProposal } from '../../../shared/project-hub-intelligence'
+import type { AdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
 import { HostAdmissionLedger } from './host-admission-ledger'
 
 export type MaterializeRequest = {

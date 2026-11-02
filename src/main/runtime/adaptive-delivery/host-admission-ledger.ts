@@ -3,7 +3,7 @@ import type { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import {
   assertAdaptiveScope, assertAdaptiveRequest, evaluateAdaptiveScope,
   type AdaptiveScope, type AdaptiveRequest
-} from '../../../../shared/adaptive-delivery/admission-contracts'
+} from '../../../shared/adaptive-delivery/admission-contracts'
 
 const INIT_SQL = [
   'CREATE TABLE IF NOT EXISTS adaptive_scope_grants (id TEXT PRIMARY KEY, scope_json TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0)',

@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import { HostAdmissionLedger } from './host-admission-ledger'
 import { NativePlanMaterializer } from './native-plan-materializer'
-import { emptyProjectHub, type HubDocument } from '../../../../shared/project-hub-types'
-import { emptyHubIntelligence, type HubPlanProposal } from '../../../../shared/project-hub-intelligence'
-import type { AdaptiveRequest, AdaptiveScope } from '../../../../shared/adaptive-delivery/admission-contracts'
+import { emptyProjectHub, type HubDocument } from '../../../shared/project-hub-types'
+import { emptyHubIntelligence, type HubPlanProposal } from '../../../shared/project-hub-intelligence'
+import type { AdaptiveRequest, AdaptiveScope } from '../../../shared/adaptive-delivery/admission-contracts'
 
 const plan: HubPlanProposal = {
   id:'plan-1',objective:'Deliver a booking use case',rationale:'Persist and validate the user flow',
