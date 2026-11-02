@@ -11,8 +11,8 @@ const plan: HubPlanProposal = {
   id:'plan-1',objective:'Deliver a booking use case',rationale:'Persist and validate the user flow',
   source:'human',createdAt:'2026-11-02T10:00:00Z',
   tasks:[
-    {id:'task-c',title:'Validate booking',role:'qa',dependsOn:['task-b',acceptance:'Booking case verified'},
-    {id:'task-b',title:'Create booking',role:'forge',dependsOn:['task-a',acceptance:'Create booking works'},
+    {id:'task-c',title:'Validate booking',role:'qa',dependsOn:['task-b'],acceptance:'Booking case verified'},
+    {id:'task-b',title:'Create booking',role:'forge',dependsOn:['task-a'],acceptance:'Create booking works'},
     {id:'task-a',title:'Build storage',role:'data',dependsOn:[],acceptance:'Storage persists bookings'}
   ]
 }
