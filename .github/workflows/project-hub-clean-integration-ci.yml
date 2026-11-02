@@ -18,6 +18,7 @@ on:
       - 'skills/adaptive-*/**'
       - 'docs/project-hub/**'
       - 'tests/e2e/project-hub-native-smoke.spec.ts'
+      - 'tests/e2e/project-hub-pointer-smoke.spec.ts'
 
 permissions:
   contents: read
@@ -110,7 +111,15 @@ jobs:
           ORCA_BACKGROUND_LAUNCH: '1'
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            xvfb-run -a pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+            xvfb-run -a pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
           else
-            pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+            pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
           fi
+      - name: Attach Electron Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-hub-electron-${{ matrix.os }}-failure
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
