@@ -613,3 +613,18 @@ describe('the inner attach reserves under its own id', () => {
     expect(child.decision).toBe('admit')
   })
 })
+
+describe('Project Hub launch quarantine', () => {
+  it('refuses the Project Hub launch before worktree or session side effects', async () => {
+    const runtime = runtimeStub()
+    await expect(launch(createLaunch({
+      launchSource: 'project-hub'
+    } as Partial<LaunchParams>), runtime)).rejects.toThrow(
+      'project_hub_launch_requires_verified_host_authorization'
+    )
+    expect(runtime.createManagedWorktree).not.toHaveBeenCalled()
+    expect(runtime.createTerminal).not.toHaveBeenCalled()
+    expect(createStructuredSession).not.toHaveBeenCalled()
+    expect(store.listOperationRows()).toHaveLength(0)
+  })
+})
