@@ -41,9 +41,9 @@ jobs:
           no-cache: true
       - name: Lint
         run: |
-          pnpm exec oxlint src/main/runtime/adaptive-delivery src/main/runtime/orchestration/coordinator.ts src/main/runtime/orchestration/coordinator-dag-convergence.ts src/main/runtime/orchestration/adaptive-staged-task.ts
+          pnpm exec oxlint src/main/runtime/adaptive-delivery src/main/runtime/orchestration/coordinator.ts src/main/runtime/orchestration/coordinator-dag-convergence.ts src/main/runtime/orchestration/adaptive-staged-task.ts src/main/runtime/orchestration/coordinator-run-scope.test.ts src/main/runtime/orchestration/coordinator-decision-gates.ts
       - name: Test safety and Coordinator regression
         run: |
-          pnpm exec vitest run --config config/vitest.config.ts src/main/runtime/adaptive-delivery src/main/runtime/orchestration/coordinator.test.ts src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts
+          pnpm exec vitest run --config config/vitest.config.ts src/main/runtime/adaptive-delivery src/main/runtime/orchestration/coordinator.test.ts src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts src/main/runtime/orchestration/coordinator-run-scope.test.ts
       - name: Typecheck
         run: pnpm typecheck
