@@ -53,12 +53,28 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   })
   await expect(orcaPage.getByText('Historia de smoke test')).toBeVisible()
 
-  await orcaPage.getByRole('button', { name: 'Orquestación' }).evaluate((element) => {
-    (element as HTMLButtonElement).click()
-  })
-  await expect(orcaPage.getByRole('alert').filter({
+  // The headless right sidebar can replace the active tab during workspace hydration.
+  // Retry navigation (a harmless idempotent selection), not the mutation or launch.
+  // Fail if the actual renderer never displays the host-authorization warning.
+  const launchWarning = orcaPage.getByRole('alert').filter({
     hasText: 'Ejecución de agentes deshabilitada'
-  })).toBeVisible()
+  })
+  await expect.poll(async () => {
+    if (await launchWarning.isVisible()) {
+      return true
+    }
+    await orcaPage.evaluate(() => {
+      const tab = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Orquestación'
+      )
+      tab?.click()
+    })
+    return launchWarning.isVisible()
+  }, {
+    timeout: 30_000,
+    intervals: [250, 500, 1_000],
+    message: 'Project Hub Orquestación tab must display the execution quarantine'
+  }).toBe(true)
   await orcaPage.getByRole('checkbox').first().evaluate((element) => {
     (element as HTMLInputElement).click()
   })
