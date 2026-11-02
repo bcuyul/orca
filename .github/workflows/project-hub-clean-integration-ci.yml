@@ -17,6 +17,7 @@ on:
       - 'src/preload/api/project-hub*'
       - 'skills/adaptive-*/**'
       - 'docs/project-hub/**'
+      - 'tests/e2e/project-hub-native-smoke.spec.ts'
 
 permissions:
   contents: read
@@ -72,3 +73,38 @@ jobs:
             src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts
       - name: Whole workspace typecheck
         run: pnpm typecheck
+
+  # A passing typecheck is not proof the React panel boots in Electron.
+  # Existing E2E fixtures create an isolated userData profile and disposable Git repo.
+  project-hub-electron-smoke:
+    name: Project Hub Electron smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - name: Prepare Electron native runtime
+        run: pnpm run ensure:electron-runtime
+      - name: Exercise native Project Hub with isolated Playwright Electron
+        env:
+          CI: 'true'
+          ORCA_BACKGROUND_LAUNCH: '1'
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+          else
+            pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+          fi
