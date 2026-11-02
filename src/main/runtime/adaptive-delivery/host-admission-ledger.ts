@@ -8,7 +8,19 @@ import {
 const INIT_SQL = [
   'CREATE TABLE IF NOT EXISTS adaptive_scope_grants (id TEXT PRIMARY KEY, scope_json TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0)',
   "CREATE TABLE IF NOT EXISTS adaptive_admissions (request_id TEXT PRIMARY KEY, scope_id TEXT NOT NULL, payload_hash TEXT NOT NULL, operation TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('reserved','unknown','completed')), receipt TEXT)",
-  'CREATE INDEX IF NOT EXISTS adaptive_admissions_by_scope ON adaptive_admissions(scope_id)'
+  'CREATE INDEX IF NOT EXISTS adaptive_admissions_by_scope ON adaptive_admissions(scope_id)',
+  // Installed before the plan materializer writes native Tasks; persists after restart.
+  // Any path writing a Dispatch (including direct SQL and worker-start) is fenced.
+  `CREATE TRIGGER IF NOT EXISTS trg_adaptive_staged_dispatch_insert
+    BEFORE INSERT ON dispatch_contexts
+    WHEN EXISTS (SELECT 1 FROM tasks t WHERE t.id = NEW.task_id
+      AND json_valid(t.spec) AND json_extract(t.spec, '$.source') = 'adaptive-untrusted-plan')
+    BEGIN SELECT RAISE(ABORT, 'adaptive_staged_not_authorized'); END`,
+  `CREATE TRIGGER IF NOT EXISTS trg_adaptive_staged_dispatch_retarget
+    BEFORE UPDATE OF task_id ON dispatch_contexts
+    WHEN EXISTS (SELECT 1 FROM tasks t WHERE t.id = NEW.task_id
+      AND json_valid(t.spec) AND json_extract(t.spec, '$.source') = 'adaptive-untrusted-plan')
+    BEGIN SELECT RAISE(ABORT, 'adaptive_staged_not_authorized'); END`
 ].concat('').join(';')
 
 type GrantRow = { scope_json: string; revoked: number }
