@@ -49,7 +49,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
 
   const shown=doc?.projectId===projectId ? doc : null
   async function save(next:HubDocument):Promise<boolean> {
-    if(!projectId||!shown||next.projectId!==projectId||busy) return false
+    if(!projectId||!shown||next.projectId!==projectId||busy) { return false }
     setBusy(true);setError('')
     try {
       const saved=await window.api.projectHub.save({projectId,document:next,expectedRevision:shown.revision})
@@ -59,18 +59,18 @@ export default function ProjectHubPanel(): React.JSX.Element {
     finally {setBusy(false)}
   }
   async function addStory():Promise<void>{
-    if(!shown||!itemTitle.trim())return
-    const nextId='PH-'+String(Math.max(0,...shown.items.map(i=>Number(/^PH-(\d+)$/.exec(i.id)?.[1]??0)))+1).padStart(3,'0')
+    if(!shown||!itemTitle.trim()) { return }
+    const nextId=`PH-${String(Math.max(0,...shown.items.map(i=>Number(/^PH-(\d+)$/.exec(i.id)?.[1]??0)))+1).padStart(3,'0')}`
     const item:HubItem={id:nextId,title:itemTitle.trim().slice(0,160),type:'story',status:'backlog',
       phase:shown.phase,source:'local',acceptance:itemAcceptance.slice(0,2000),description:''}
     if(await save({...shown,items:[...shown.items,item]})) {
       setItemTitle('');setItemAcceptance('')
     }
   }
-  if(!projectId) return <div className="p-4 text-sm text-muted-foreground">
+  if(!projectId) { return <div className="p-4 text-sm text-muted-foreground">
     Selecciona un worktree perteneciente a un proyecto de Orca para abrir Project Hub.
-  </div>
-  if(loading) return <div className="p-4 text-xs text-muted-foreground">Cargando datos del proyecto…</div>
+  </div> }
+  if(loading) { return <div className="p-4 text-xs text-muted-foreground">Cargando datos del proyecto…</div> }
   return <section className="flex h-full min-h-0 flex-col overflow-y-auto bg-background text-foreground">
     <header className="sticky top-0 z-10 border-b border-border bg-background px-4 py-3">
       <div className="flex items-center gap-2 text-xs text-primary"><LayoutDashboard className="h-4 w-4"/> PROJECT HUB · NATIVO</div>
@@ -79,7 +79,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
       <div className="mt-3 flex gap-2 overflow-x-auto">
         {([['summary','Resumen'],['backlog','Backlog'],['delegate','Orquestación'],['intelligence','Inteligencia'],['architecture','Arquitectura'],['qa','QA'],['blueprint','Blueprint'],['team','Equipo']] as const).map(([key,label])=>
           <button key={key} type="button" onClick={()=>setTab(key)}
-            className={'rounded-md px-3 py-1.5 text-xs '+(tab===key?'bg-primary text-primary-foreground':'bg-muted text-muted-foreground')}>{label}</button>)}
+            className={`rounded-md px-3 py-1.5 text-xs ${tab===key?'bg-primary text-primary-foreground':'bg-muted text-muted-foreground'}`}>{label}</button>)}
       </div>
     </header>
     {error && <p role="alert" className="m-3 rounded border border-destructive p-2 text-xs text-destructive">{error} <button type="button" className="underline" onClick={()=>projectId&&window.api.projectHub.read(projectId).then(setDoc).catch(e=>setError(String(e)))}>Recargar</button></p>}
@@ -89,7 +89,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
         <div className="mb-2 text-xs font-semibold">Fase {shown.phase}/10 · {PROJECT_HUB_PHASES[shown.phase-1]}</div>
         <div className="grid grid-cols-10 gap-1" aria-label="Progreso de las 10 fases">
           {PROJECT_HUB_PHASES.map((name,i)=><div key={name} title={name}
-            className={'h-2 rounded '+(i<shown.phase?'bg-primary':'bg-muted')}/>)}
+            className={`h-2 rounded ${i<shown.phase?'bg-primary':'bg-muted'}`}/>)}
         </div>
       </div>
       {tab==='summary'&&<>
@@ -110,7 +110,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
             onClick={()=>{void save(approveHubPhase(shown,approvalNote,new Date().toISOString())).then(ok=>{if(ok){setApprovalNote('');setApproveChecked(false)}})}}>
             <ShieldCheck className="h-4 w-4"/> Registrar aprobación y avanzar
           </button>
-          <div className="mt-3 space-y-1 text-xs text-muted-foreground">{shown.approvals.slice(-4).reverse().map(a=>
+          <div className="mt-3 space-y-1 text-xs text-muted-foreground">{shown.approvals.slice(-4).toReversed().map(a=>
             <p key={a.at}>{a.from} → {a.to}: {a.note}</p>)}</div>
         </div>
       </>}
@@ -122,7 +122,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
               <div key={item.id} className="mb-2 rounded border border-border p-2 text-xs">
                 <div className="text-muted-foreground">{item.id} · Fase {item.phase}</div>
                 <div className="my-1 font-medium">{item.title}</div>
-                <select value={item.status} disabled={busy} aria-label={'Estado '+item.id}
+                <select value={item.status} disabled={busy} aria-label={`Estado ${item.id}`}
                   onChange={e=>{void save({...shown,items:shown.items.map(i=>i.id===item.id?{...i,status:e.target.value as HubStatus}:i)})}}
                   className="w-full rounded border border-border bg-background p-1">
                   {PROJECT_HUB_STATUSES.map(x=><option key={x} value={x}>{STATUS_LABELS[x]}</option>)}
