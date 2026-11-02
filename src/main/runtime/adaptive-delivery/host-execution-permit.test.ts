@@ -73,7 +73,7 @@ function setup(databasePath: string = ':memory:') {
     repoId: 'repo-permit', hostId: 'host-one',
     worktreeId: 'worktree-lab', baseSha: sha
   })) }
-  const sandbox = { inspectSandbox: vi.fn((): AgentSandboxEvidence => ({
+  const sandbox = { inspectSandbox: vi.fn((): AgentSandboxEvidence | null => ({
     kind: 'os-enforced', sandboxId: 'test-sandbox',
     policyDigest: 'b'.repeat(64),
     filesystem: 'restricted', network: 'restricted',
