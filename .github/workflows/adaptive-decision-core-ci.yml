@@ -1,0 +1,54 @@
+# Experimental stacked PR: no secrets, agents, deployment or repository writes.
+name: Adaptive Decision Core contracts
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - docs/adaptive-delivery-feasibility
+    paths:
+      - '.github/workflows/adaptive-decision-core-ci.yml'
+      - 'src/shared/adaptive-delivery/**'
+      - 'docs/project-hub/ADAPTIVE_DECISION_CORE_PR7.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptive-decision-core-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install repository-pinned Node 24 dependencies
+        uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - name: Set up repository-pinned Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: config/.bun-version
+          no-cache: true
+      - name: Lint advisory contracts
+        run: pnpm exec oxlint src/shared/adaptive-delivery
+      - name: Run advisory contract tests
+        run: pnpm exec vitest run --config config/vitest.config.ts src/shared/adaptive-delivery/adaptive-delivery.test.ts
+      - name: Workspace typecheck
+        run: pnpm typecheck
