@@ -153,7 +153,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
       </div>}
       {tab==='delegate'&&<ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
         hostId={worktree?.hostId??''} branch={worktree?.branch??''}
-        onSave={save} onUpdated={next=>setDoc(current=>current?.projectId===next.projectId?next:current)}/>} 
+        onSave={save}/>} 
       {tab==='intelligence'&&<ProjectHubIntelligencePanel doc={shown} busy={busy} onSave={save}/>}
       {tab==='architecture'&&<ProjectHubArchitecture doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
       {tab==='qa'&&<ProjectHubQuality doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
