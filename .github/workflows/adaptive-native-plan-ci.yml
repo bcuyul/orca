@@ -1,0 +1,43 @@
+name: Adaptive Native Plan Bridge
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [feat/adaptive-host-admission]
+    paths:
+      - '.github/workflows/adaptive-native-plan-ci.yml'
+      - 'src/main/runtime/adaptive-delivery/**'
+      - 'src/shared/adaptive-delivery/**'
+      - 'docs/project-hub/ADAPTIVE_NATIVE_PLAN_PR9.md'
+permissions:
+  contents: read
+jobs:
+  native-bridge:
+    name: Native bridge (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version-file: config/.bun-version
+          no-cache: true
+      - name: Lint
+        run: pnpm exec oxlint src/shared/adaptive-delivery src/main/runtime/adaptive-delivery
+      - name: Tests native SQLite and contracts
+        run: pnpm exec vitest run --config config/vitest.config.ts src/shared/adaptive-delivery src/main/runtime/adaptive-delivery
+      - name: Typecheck
+        run: pnpm typecheck
