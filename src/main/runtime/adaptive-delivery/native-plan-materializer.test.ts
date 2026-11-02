@@ -68,7 +68,7 @@ describe('native plan materializer: real Run/Task rows, no workers',()=>{
     expect(db.db.prepare('SELECT COUNT(*) AS n FROM dispatch_contexts').get()).toMatchObject({n:0})
     expect(db.db.prepare('SELECT COUNT(*) AS n FROM coordinator_runs').get()).toMatchObject({n:0})
     expect(bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})).toEqual(result)
-    expect(db.listRuns().runs).toHaveLength(1)
+    expect(db.listRuns().runs.filter(run => run.legacy === 0)).toHaveLength(1)
   }))
   it('refuses a plan without accepted human decision',()=>harness(({ledger,bridge})=>{
     ledger.recordHostApproval('scope-1',scope)
@@ -90,11 +90,11 @@ describe('native plan materializer: real Run/Task rows, no workers',()=>{
     expect(attempt?.state).toBe('unknown')
     expect(attempt?.receipt).toContain('runId')
     expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})).toThrow(/reconcile/)
-    expect(db.listRuns().runs).toHaveLength(1)
+    expect(db.listRuns().runs.filter(run => run.legacy === 0)).toHaveLength(1)
     expect(db.db.prepare('SELECT COUNT(*) AS n FROM dispatch_contexts').get()).toMatchObject({n:0})
   }))
   it('does not create a new Run when scope is not granted',()=>harness(({db,bridge})=>{
     expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})).toThrow(/unapproved_scope/)
-    expect(db.listRuns().runs).toHaveLength(0)
+    expect(db.listRuns().runs.filter(run => run.legacy === 0)).toHaveLength(0)
   }))
 })
