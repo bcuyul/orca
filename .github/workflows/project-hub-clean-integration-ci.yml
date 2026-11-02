@@ -1,0 +1,74 @@
+name: Clean Project Hub Integration
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - '.github/workflows/project-hub-clean-integration-ci.yml'
+      - 'src/main/project-hub/**'
+      - 'src/main/runtime/adaptive-delivery/**'
+      - 'src/main/runtime/orchestration/**'
+      - 'src/main/runtime/rpc/methods/agent-launch*'
+      - 'src/shared/project-hub*'
+      - 'src/shared/adaptive-delivery/**'
+      - 'src/renderer/src/components/right-sidebar/ProjectHub*'
+      - 'src/main/ipc/project-hub.ts'
+      - 'src/preload/api/project-hub*'
+      - 'skills/adaptive-*/**'
+      - 'docs/project-hub/**'
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Native integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version-file: config/.bun-version
+          no-cache: true
+      - name: Reject HTML prototype from experimental PR 1
+        run: |
+          if test -e extensions/project-hub/panel.html || test -e extensions/project-hub/main.mjs; then
+            echo "Rejected: unverified experimental Project Hub HTML plugin"
+            exit 1
+          fi
+      - name: Oxlint native integration paths
+        run: |
+          pnpm exec oxlint \
+            src/main/project-hub \
+            src/main/runtime/adaptive-delivery \
+            src/shared/adaptive-delivery \
+            src/shared/project-hub*.ts \
+            src/main/runtime/orchestration/coordinator.ts
+      - name: Run Project Hub, Adaptive and Coordinator regression tests
+        run: |
+          pnpm exec vitest run --config config/vitest.config.ts \
+            src/main/project-hub \
+            src/main/runtime/adaptive-delivery \
+            src/shared/adaptive-delivery \
+            src/shared/project-hub \
+            src/main/runtime/orchestration/coordinator.test.ts \
+            src/main/runtime/orchestration/coordinator-run-scope.test.ts \
+            src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts
+      - name: Whole workspace typecheck
+        run: pnpm typecheck

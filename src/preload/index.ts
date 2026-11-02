@@ -12,6 +12,7 @@ import { wslDriveProjectApi } from './api/wsl-drive-project-bridge'
 import { pwshApi } from './api/pwsh-bridge'
 import { gitBashApi } from './api/git-bash-bridge'
 import { pluginsApi } from './api/plugins-bridge'
+import { projectHubApi } from './api/project-hub-bridge'
 import { reposApi } from './api/repos-bridge'
 import { projectsApi } from './api/projects-bridge'
 import { projectGroupsApi } from './api/project-groups-bridge'
@@ -110,6 +111,7 @@ const api = {
   pwsh: pwshApi,
   gitBash: gitBashApi,
   plugins: pluginsApi,
+  projectHub: projectHubApi,
   repos: reposApi,
   projects: projectsApi,
   projectGroups: projectGroupsApi,

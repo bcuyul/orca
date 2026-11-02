@@ -1,0 +1,375 @@
+{
+  "kind": "synthetic-feasibility-benchmark",
+  "status": "offline-only",
+  "assumptions": "Illustrative utility and effort scales; not Orca empirical predictions",
+  "results": [
+    {
+      "scenario": "base",
+      "budget": 11,
+      "fifo": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "effort": 11,
+        "utility": 22.609999999999996
+      },
+      "wsjf": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "effort": 11,
+        "utility": 22.609999999999996
+      },
+      "exact": {
+        "status": "optimal-subset",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "effort": 11,
+        "utility": 22.609999999999996
+      },
+      "greedySchedule": {
+        "schedule": [
+          {
+            "id": "A",
+            "workerId": "data-1",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "id": "B",
+            "workerId": "forge-1",
+            "start": 3,
+            "end": 7
+          },
+          {
+            "id": "C",
+            "workerId": "forge-1",
+            "start": 7,
+            "end": 9
+          },
+          {
+            "id": "D",
+            "workerId": "forge-1",
+            "start": 9,
+            "end": 11
+          }
+        ],
+        "makespan": 11
+      }
+    },
+    {
+      "scenario": "low-budget",
+      "budget": 7,
+      "fifo": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B"
+        ],
+        "effort": 7,
+        "utility": 15.509999999999998
+      },
+      "wsjf": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B"
+        ],
+        "effort": 7,
+        "utility": 15.509999999999998
+      },
+      "exact": {
+        "status": "optimal-subset",
+        "selected": [
+          "A",
+          "B"
+        ],
+        "effort": 7,
+        "utility": 15.509999999999998
+      },
+      "greedySchedule": {
+        "schedule": [
+          {
+            "id": "A",
+            "workerId": "data-1",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "id": "B",
+            "workerId": "forge-1",
+            "start": 3,
+            "end": 7
+          }
+        ],
+        "makespan": 7
+      }
+    },
+    {
+      "scenario": "high-budget",
+      "budget": 15,
+      "fifo": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E"
+        ],
+        "effort": 14,
+        "utility": 25.549999999999997
+      },
+      "wsjf": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "F"
+        ],
+        "effort": 14,
+        "utility": 28.134999999999994
+      },
+      "exact": {
+        "status": "optimal-subset",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "E",
+          "F"
+        ],
+        "effort": 15,
+        "utility": 28.374999999999996
+      },
+      "greedySchedule": {
+        "schedule": [
+          {
+            "id": "A",
+            "workerId": "data-1",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "id": "B",
+            "workerId": "forge-1",
+            "start": 3,
+            "end": 7
+          },
+          {
+            "id": "C",
+            "workerId": "forge-1",
+            "start": 7,
+            "end": 9
+          },
+          {
+            "id": "F",
+            "workerId": "forge-1",
+            "start": 9,
+            "end": 12
+          },
+          {
+            "id": "E",
+            "workerId": "forge-1",
+            "start": 12,
+            "end": 15
+          }
+        ],
+        "makespan": 15
+      }
+    },
+    {
+      "scenario": "security-required",
+      "budget": 11,
+      "fifo": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "F"
+        ],
+        "effort": 10,
+        "utility": 21.034999999999997
+      },
+      "wsjf": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "F"
+        ],
+        "effort": 10,
+        "utility": 21.034999999999997
+      },
+      "exact": {
+        "status": "optimal-subset",
+        "selected": [
+          "A",
+          "B",
+          "F"
+        ],
+        "effort": 10,
+        "utility": 21.034999999999997
+      },
+      "greedySchedule": {
+        "schedule": [
+          {
+            "id": "A",
+            "workerId": "data-1",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "id": "B",
+            "workerId": "forge-1",
+            "start": 3,
+            "end": 7
+          },
+          {
+            "id": "F",
+            "workerId": "forge-1",
+            "start": 7,
+            "end": 10
+          }
+        ],
+        "makespan": 10
+      }
+    },
+    {
+      "scenario": "human-blocks-D",
+      "budget": 11,
+      "fifo": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C"
+        ],
+        "effort": 9,
+        "utility": 19.909999999999997
+      },
+      "wsjf": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C"
+        ],
+        "effort": 9,
+        "utility": 19.909999999999997
+      },
+      "exact": {
+        "status": "optimal-subset",
+        "selected": [
+          "A",
+          "B",
+          "F"
+        ],
+        "effort": 10,
+        "utility": 21.034999999999997
+      },
+      "greedySchedule": {
+        "schedule": [
+          {
+            "id": "A",
+            "workerId": "data-1",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "id": "B",
+            "workerId": "forge-1",
+            "start": 3,
+            "end": 7
+          },
+          {
+            "id": "F",
+            "workerId": "forge-1",
+            "start": 7,
+            "end": 10
+          }
+        ],
+        "makespan": 10
+      }
+    },
+    {
+      "scenario": "C-low-confidence",
+      "budget": 11,
+      "fifo": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "effort": 11,
+        "utility": 19.034999999999997
+      },
+      "wsjf": {
+        "status": "heuristic",
+        "selected": [
+          "A",
+          "B",
+          "F"
+        ],
+        "effort": 10,
+        "utility": 21.034999999999997
+      },
+      "exact": {
+        "status": "optimal-subset",
+        "selected": [
+          "A",
+          "B",
+          "F"
+        ],
+        "effort": 10,
+        "utility": 21.034999999999997
+      },
+      "greedySchedule": {
+        "schedule": [
+          {
+            "id": "A",
+            "workerId": "data-1",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "id": "B",
+            "workerId": "forge-1",
+            "start": 3,
+            "end": 7
+          },
+          {
+            "id": "F",
+            "workerId": "forge-1",
+            "start": 7,
+            "end": 10
+          }
+        ],
+        "makespan": 10
+      }
+    }
+  ],
+  "valueOfInformation": {
+    "baselineValue": 60,
+    "withInformationValue": 68,
+    "evsi": 8,
+    "netValue": 5,
+    "recommendResearch": true
+  }
+}
