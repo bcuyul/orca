@@ -23,6 +23,8 @@ export type CoordinatorOptions = {
   pollIntervalMs?: number
   maxConcurrent?: number
   worktree?: string
+  /** Native tasks.run_id scoping for isolated dry runs, not an execution grant. */
+  taskRunId?: string
   onLog?: (msg: string) => void
 }
 
@@ -42,9 +44,10 @@ export class Coordinator {
   private runtime: CoordinatorRuntime
   private state: CoordinatorState
   private stopped = false
-  private opts: Required<Omit<CoordinatorOptions, 'onLog' | 'worktree'>> & {
+  private opts: Required<Omit<CoordinatorOptions, 'onLog' | 'worktree' | 'taskRunId'>> & {
     onLog: (msg: string) => void
     worktree?: string
+    taskRunId?: string
   }
 
   constructor(db: OrchestrationDb, runtime: CoordinatorRuntime, options: CoordinatorOptions) {
@@ -56,6 +59,7 @@ export class Coordinator {
       pollIntervalMs: options.pollIntervalMs ?? DEFAULT_POLL_MS,
       maxConcurrent: options.maxConcurrent ?? MAX_CONCURRENT_DEFAULT,
       worktree: options.worktree,
+      taskRunId: options.taskRunId,
       onLog: options.onLog ?? (() => {})
     }
     this.state = {
@@ -100,6 +104,9 @@ export class Coordinator {
     failedTasks: string[]
     escalations: MessageRow[]
   }> {
+    // A coordinator_runs row is NOT the same as native runs.id. Validate the
+    // explicit native task scope before any effects or terminal creation.
+    if (this.opts.taskRunId) { this.db.requireRun(this.opts.taskRunId) }
     this.state.runId = runId
     this.opts.onLog(`Coordinator run ${runId} started`)
 
@@ -115,7 +122,7 @@ export class Coordinator {
       }
 
       // Stopping with incomplete tasks makes the run fail.
-      const tasks = this.db.listTasks().filter(t => !isAdaptiveStagedTaskSpec(t.spec))
+      const tasks = this.scopedTasks()
       const allDone = tasks.every((t) => t.status === 'completed' || t.status === 'failed')
       const failedTasks = [
         ...new Set([
@@ -148,7 +155,7 @@ export class Coordinator {
   // Tasks must be pre-created until decomposition is implemented.
   private async decompose(): Promise<void> {
     this.state.phase = 'decomposing'
-    const existing = this.db.listTasks().filter(t => !isAdaptiveStagedTaskSpec(t.spec))
+    const existing = this.scopedTasks()
     if (existing.length === 0) {
       throw new Error(
         'No tasks found. Create tasks with orchestration.taskCreate before running the coordinator.'
@@ -168,7 +175,7 @@ export class Coordinator {
   private async tick(): Promise<boolean> {
     this.processMessages()
     this.processEscalations()
-    reblockTasksWithPendingGates(this.db)
+    reblockTasksWithPendingGates(this.db, this.opts.taskRunId)
     warnStaleDispatches(this.db, this.opts.onLog, this.heartbeatIntervalMinutes())
     await this.dispatchReadyTasks()
     return this.checkConvergence()
@@ -176,6 +183,7 @@ export class Coordinator {
 
   private processMessages(): void {
     const messages = this.db.getUnreadMessages(this.opts.coordinatorHandle)
+      .filter(msg => !this.opts.taskRunId || msg.run_id === this.opts.taskRunId)
     if (messages.length === 0) {
       return
     }
@@ -235,7 +243,8 @@ export class Coordinator {
 
   private async dispatchReadyTasks(): Promise<void> {
     this.state.phase = 'dispatching'
-    const readyTasks = this.db.listTasks({ ready: true }).filter(t => !isAdaptiveStagedTaskSpec(t.spec))
+    const readyTasks = this.db.listTasks({ ready: true, runId: this.opts.taskRunId })
+      .filter(t => !isAdaptiveStagedTaskSpec(t.spec))
     if (readyTasks.length === 0) {
       return
     }
@@ -313,11 +322,16 @@ export class Coordinator {
   }
 
   private checkConvergence(): boolean {
-    const convergence = evaluateDagConvergence(this.db, this.opts.onLog)
+    const convergence = evaluateDagConvergence(this.db, this.opts.onLog, this.opts.taskRunId)
     if (convergence === 'all-done') {
       this.state.phase = 'done'
     }
     return convergence !== 'active'
+  }
+
+  private scopedTasks() {
+    return this.db.listTasks(this.opts.taskRunId ? { runId: this.opts.taskRunId } : undefined)
+      .filter(t => !isAdaptiveStagedTaskSpec(t.spec))
   }
 
   private sleep(ms: number): Promise<void> {
