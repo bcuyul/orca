@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import { HostAdmissionLedger } from './host-admission-ledger'
@@ -43,8 +46,8 @@ function request(operation: 'materialize_run' | 'agent_turn'): AdaptiveRequest {
     taskIds: ['plan-task-one'], operation
   }
 }
-function setup() {
-  const db = new OrchestrationDb(':memory:')
+function setup(databasePath: string = ':memory:') {
+  const db = new OrchestrationDb(databasePath)
   const ledger = new HostAdmissionLedger(db)
   ledger.recordHostApproval('materialize-scope', scope('materialize_run'))
   const materializer = new NativePlanMaterializer(db, ledger, {
@@ -199,6 +202,34 @@ describe('Host execution permit: independent verified authority, still no Dispat
       expect(() => permits.prepare(input)).toThrow(/unapproved_scope/)
     }
   ))
+
+  it('replays the same permit after reopening a native SQLite database', () => {
+    const folder = mkdtempSync(join(tmpdir(), 'orca-execution-permit-'))
+    const filename = join(folder, 'orchestration.sqlite')
+    let reopened: OrchestrationDb | undefined
+    try {
+      const first = setup(filename)
+      let receipt: ReturnType<HostExecutionPermitStore['prepare']>
+      try {
+        first.ledger.recordHostApproval('execution-scope', scope('agent_turn'))
+        receipt = first.permits.prepare(first.input)
+      } finally {
+        first.db.close()
+      }
+      reopened = new OrchestrationDb(filename)
+      const ledger = new HostAdmissionLedger(reopened)
+      const second = new HostExecutionPermitStore(reopened, ledger,
+        first.approvals, first.worktrees)
+      expect(second.prepare({ ...first.input, nowMs: now + 1000 })).toEqual(receipt)
+      expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM adaptive_execution_permits').get())
+        .toMatchObject({ count: 1 })
+      expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM dispatch_contexts').get())
+        .toMatchObject({ count: 0 })
+    } finally {
+      reopened?.close()
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
 })
 function dbCount(ledger: HostAdmissionLedger, table: string): number {
   // This helper deliberately cannot query the private ledger DB; use a
