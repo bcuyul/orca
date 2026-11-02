@@ -145,11 +145,9 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         </p>}
       </div>)}
     </div>}
-    {pending.length>0&&<>
-      <button type="button" className={button} disabled>
-        <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones (requiere autorización del host)
-      </button>
-    </>}
+    {pending.length>0&&<button type="button" className={button} disabled>
+      <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones (requiere autorización del host)
+    </button>}
     {capacity.held>0&&<p className="flex items-start gap-2 text-xs text-muted-foreground">
       <ShieldAlert className="h-4 w-4 shrink-0"/>
       Para liberar cupos hará falta conciliación con sesiones vivas y revisión; cerrar una pestaña no equivale a completar el trabajo.
