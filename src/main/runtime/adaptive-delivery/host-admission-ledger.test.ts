@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import { HostAdmissionLedger } from './host-admission-ledger'
-import type { AdaptiveScope, AdaptiveRequest } from '../../../../shared/adaptive-delivery/admission-contracts'
+import type { AdaptiveScope, AdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
 
 const scope: AdaptiveScope = {
   projectId:'project-1',repoId:'repo-1',hostId:'local',baseSha:'a'.repeat(40),
