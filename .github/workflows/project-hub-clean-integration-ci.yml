@@ -23,6 +23,12 @@ on:
 permissions:
   contents: read
 
+# Keep one active verification matrix per PR; obsolete pushes must not compete
+# for long Windows native-build runners or report stale results as current.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   integration:
     name: Native integration (${{ matrix.os }})
