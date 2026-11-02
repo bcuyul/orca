@@ -82,6 +82,15 @@ export class HostAdmissionLedger {
     }
   }
 
+  /** Checkpoint the Run/task map after each irreversible native write. */
+  checkpoint(id: string, receipt: string): void {
+    if (!receipt || receipt.length > 20_000) { throw new Error('Invalid checkpoint') }
+    const changed = this.database.db.prepare(
+      "UPDATE adaptive_admissions SET receipt=? WHERE request_id=? AND state='reserved'"
+    ).run(receipt,id)
+    if (changed.changes !== 1) { throw new Error('Request not reserved') }
+  }
+
   /** Ambiguous outcomes keep the budget reservation. Never blindly retry. */
   markUnknown(id: string): void {
     if (this.database.db.prepare(
