@@ -5,8 +5,8 @@ import { useState } from 'react'
 import { Bot, GitBranch, PlayCircle, ShieldAlert } from 'lucide-react'
 import type { HubDocument } from '../../../../shared/project-hub-types'
 import {
-  HUB_CLI_AGENTS, prepareHubDelegation, renderHubWorkerPrompt, parseHubLaunchReceipt,
-  type HubCliAgent, type HubDelegation
+  HUB_CLI_AGENTS, prepareHubDelegation,
+  type HubCliAgent
 } from '../../../../shared/project-hub-delegation'
 import { createStructuredAgentSessionOperationId } from '../../../../shared/structured-agent-session-mutation'
 import { createBrowserUuid } from '@/lib/browser-uuid'
@@ -21,7 +21,6 @@ type Props={
   hostId:string
   branch:string
   onSave:(next:HubDocument)=>Promise<boolean>
-  onUpdated:(next:HubDocument)=>void
 }
 const names:Record<HubCliAgent,string>={opencode:'OpenCode CLI',codex:'Codex CLI',claude:'Claude Code CLI',hermes:'Hermes CLI'}
 const button='rounded-md border border-border bg-muted px-3 py-2 text-xs disabled:opacity-40'
@@ -32,13 +31,12 @@ const statuses={
   unconfirmed:'Resultado desconocido: requiere conciliación'
 } as const
 
-export default function ProjectHubDelegationRunner({document,repoId,hostId,branch,onSave,onUpdated}:Props):React.JSX.Element{
+export default function ProjectHubDelegationRunner({document,repoId,hostId,branch,onSave}:Props):React.JSX.Element{
   const [selected,setSelected]=useState<string[]>([])
   const [worker,setWorker]=useState<HubCliAgent>('opencode')
   const [profile,setProfile]=useState<HubAgentProfile>('forge')
   const [reviewer,setReviewer]=useState<HubCliAgent|'human'>('codex')
   const [limit,setLimit]=useState(2)
-  const [approved,setApproved]=useState(false)
   const [busy,setBusy]=useState(false)
   const [notice,setNotice]=useState('')
   const local=hostId==='local'
@@ -48,7 +46,6 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   )
   const capacity=summarizeHubDelegationCapacity(rows,repoId,hostId,limit)
   const pending=rows.filter(d=>d.status==='planned'&&d.repoId===repoId&&d.hostId===hostId)
-  const slots=capacity.available
 
   async function prepare():Promise<void>{
     setNotice('')
@@ -59,82 +56,10 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
           const uuid=createBrowserUuid().replaceAll('-','').toLowerCase()
           return {id:`hub-${uuid}`,operationId:createStructuredAgentSessionOperationId(createBrowserUuid)}
         }})
-      if(await onSave(next)){setSelected([]);setApproved(false);setNotice('Lote preparado y guardado. Todavía no se inició ningún agente.')}
+      if(await onSave(next)){setSelected([]);setNotice('Lote preparado y guardado. Todavía no se inició ningún agente.')}
     }catch(e){setNotice(`No se pudo preparar: ${String(e)}`)}
   }
 
-  /** Every iteration awaits the durable reserve and the host receipt; worker processes themselves run in parallel. */
-  async function launchBatch():Promise<void>{
-    if(!approved||!local||busy||slots<=0){return}
-    setBusy(true);setNotice('')
-    const targetProject=document.projectId
-    const targetRepo=repoId
-    const targetHost=hostId
-    let created=0
-    try{
-      for(const planned of pending.slice(0,slots)){
-        const fresh=await window.api.projectHub.read(targetProject)
-        const current=fresh.delegations?.find(x=>x.id===planned.id)
-        if(!current||current.status!=='planned'||current.operationId!==planned.operationId||
-           current.repoId!==targetRepo||current.hostId!==targetHost){
-          throw new Error('Plan modified by another window. Reload before launching.')
-        }
-        const reserved:HubDocument={...fresh,delegations:(fresh.delegations??[]).map(row=>
-          row.id===current.id?{...row,status:'launching' as const}:row)}
-        const checkpoint=await window.api.projectHub.save({
-          projectId:targetProject,document:reserved,expectedRevision:fresh.revision
-        })
-        onUpdated(checkpoint)
-        let result:Awaited<ReturnType<typeof window.api.runtime.call>>|null=null
-        let failure=''
-        try {
-          result=await window.api.runtime.call({
-            method:'agent.launchReplay',
-            params:{
-              operationId:current.operationId,
-              agent:current.agent,
-              target:{kind:'create-worktree',create:{
-                repo:repoId,repoHostId:hostId,name:current.name,baseBranch:current.baseBranch,
-                runHooks:false,activate:false,noParent:true,clientMutationId:current.operationId
-              }},
-              prompt:{text:renderHubWorkerPrompt(checkpoint,current),delivery:'submit'},
-              surface:'terminal',
-              presentation:'background',
-              launchSource:'project-hub'
-            }
-          })
-        }catch(e){failure=String(e)}
-        const latest=await window.api.projectHub.read(targetProject)
-        const reservedRecord=latest.delegations?.find(x=>x.id===current.id)
-        if(reservedRecord?.status!=='launching'||reservedRecord.operationId!==current.operationId){
-          throw new Error('Launch reservation changed; inspect Orca sessions before retrying')
-        }
-        const receipt=result?.ok?parseHubLaunchReceipt(result.result):null
-        const payload=result?.ok&&typeof result.result==='object'&&result.result!==null
-          ? result.result as {prompt?:{outcome?:string}}:null
-        const delivered=payload?.prompt?.outcome==='handed-to-terminal'
-        const outcome:HubDelegation=receipt&&delivered
-          ?{...reservedRecord,status:'launched',worktreeId:receipt.worktreeId,
-              terminalHandle:receipt.terminalHandle,...(receipt.warning?{warning:receipt.warning}:{})}
-          :{...reservedRecord,status:'unconfirmed',warning:(
-            failure||(result&&!result.ok?result.error.message:
-            'Host receipt or initial prompt delivery not confirmed; do not launch again with a new ID')
-          ).slice(0,1000)}
-        const committed=await window.api.projectHub.save({
-          projectId:targetProject,
-          document:{...latest,delegations:latest.delegations?.map(d=>d.id===outcome.id?outcome:d)},
-          expectedRevision:latest.revision
-        })
-        onUpdated(committed)
-        if(outcome.status==='unconfirmed'){
-          throw new Error('At least one launch is unconfirmed. Inspect the Orca session before proceeding.')
-        }
-        created++
-      }
-      setNotice(`${created} agente(s) CLI iniciado(s) en worktrees nuevos. No se han verificado tareas ni CI.`)
-    }catch(e){setNotice(`Lote detenido después de ${created} confirmaciones: ${String(e)}`)}
-    finally{setBusy(false);setApproved(false)}
-  }
 
   return <section className="space-y-3 rounded-lg border border-border bg-card p-3">
     <h3 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4"/> Centro de ejecución</h3>
@@ -218,13 +143,8 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       </div>)}
     </div>}
     {pending.length>0&&<>
-      <label className="flex items-start gap-2 text-xs">
-        <input type="checkbox" checked={approved} disabled={busy} onChange={e=>setApproved(e.target.checked)}/>
-        Autorizo crear nuevos worktrees y ejecutar los agentes CLI seleccionados. No autorizo merge ni despliegue.
-      </label>
-      <button type="button" className={button} disabled={true}
-        onClick={()=>void launchBatch()}>
-        <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones a {Math.min(slots,pending.length)} agente(s)
+      <button type="button" className={button} disabled>
+        <PlayCircle className="mr-1 inline h-4 w-4"/> Iniciar y enviar instrucciones (requiere autorización del host)
       </button>
     </>}
     {capacity.held>0&&<p className="flex items-start gap-2 text-xs text-muted-foreground">
