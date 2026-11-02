@@ -175,18 +175,20 @@ describe('Host execution permit: independent verified authority, still no Dispat
     }
   ))
 
-  it('replay with changed worktree/approval cannot reuse original receipt', () => testWithDb(
-    ({ permits, input, ledger, worktrees }) => {
+  it('replay with a different verified worktree cannot reuse the original receipt', () => testWithDb(
+    ({ permits, input, ledger, worktrees, approvals, decision }) => {
       ledger.recordHostApproval('execution-scope', scope('agent_turn'))
-      permits.prepare(input)
-      const original = worktrees.readVerifiedWorktree
-      original.mockReturnValueOnce({
+      const original = permits.prepare(input)
+      approvals.readVerifiedExecutionDecision.mockReturnValueOnce({
+        ...decision, worktreeId: 'other-worktree'
+      })
+      worktrees.readVerifiedWorktree.mockReturnValueOnce({
         repoId: 'repo-permit', hostId: 'host-one',
         worktreeId: 'other-worktree', baseSha: sha
       })
       expect(() => permits.prepare({ ...input, worktreeId: 'other-worktree' }))
-        .toThrow()
-      expect(permits.prepare(input).state).toBe('prepared')
+        .toThrow(/execution_permit_replay_mismatch/)
+      expect(permits.prepare(input)).toEqual(original)
     }
   ))
 
