@@ -39,3 +39,30 @@ and must not be bundled into a release or imported into native code.
 
 This PR does not itself activate or launch any agent and is safe to inspect
 without merging into main.
+
+## Actual integration status (November 2, 2026)
+
+- PR #1 is closed **without merge**, retained for historical traceability.
+- PRs #2–#12 remain Draft stacked PRs, NOT separate candidates to merge into `main`.
+- PRs #13 and #14 merged only into their stacked base branches.
+- PR #15 remains a Draft integration snapshot; no publication or merge authorized by CI alone.
+- The Project Hub renderer's live `agent.launchReplay` call was removed. It can still
+  persist delegation plans, but **cannot initiate CLI execution through its UI**.
+- The host RPC rejects the `project-hub` launch label for defense in depth, but the
+  label is caller-controlled and **must not** be treated as an authenticated sandbox
+  or a general security boundary.
+- An isolated Playwright Electron smoke spec now covers panel boot, backlog persistence,
+  and the disabled launch UI on disposable profiles. A test file and workflow declaration
+  do **not** establish a PASS until GitHub Actions runs succeed on both systems.
+- The verification still needs independent host authorization, real OS sandbox
+  enforcement, and a comprehensive security review before execution is enabled.
+
+### Verification workflow
+
+`Clean Project Hub Integration` runs native lint/tests/typecheck and an Electron
+smoke matrix for Ubuntu and Windows. The E2E fixture generates disposable user
+profiles and repositories; no real user account, model CLI, remote worker or
+production environment is used.
+
+The release gate is intentionally **fail closed**: while any Electron/security
+verification is unconfirmed, preserve Draft status and do not merge to `main`.
