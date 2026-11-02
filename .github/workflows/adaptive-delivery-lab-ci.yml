@@ -1,0 +1,47 @@
+# Draft-stack-scoped, no installs, no secrets, no deploys, no merges.
+name: Adaptive Delivery offline policy lab
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - feat/project-hub-agent-intelligence
+    paths:
+      - '.github/workflows/adaptive-delivery-lab-ci.yml'
+      - 'docs/project-hub/ADAPTIVE_DELIVERY_*.md'
+      - 'tools/adaptive-delivery-lab/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptive-delivery-lab-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  offline-policy-tests:
+    name: Offline policies (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test decision core
+        run: node --test tools/adaptive-delivery-lab/decision-core.test.mjs
+      - name: Benchmark deterministic reference
+        run: |
+          node tools/adaptive-delivery-lab/benchmark.mjs > adaptive-delivery-benchmark.actual.json
+          node -e "const fs=require('node:fs');const assert=require('node:assert/strict');assert.equal(fs.readFileSync('adaptive-delivery-benchmark.actual.json','utf8'),fs.readFileSync('tools/adaptive-delivery-lab/results.example.json','utf8'))"
