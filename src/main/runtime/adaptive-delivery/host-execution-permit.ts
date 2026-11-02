@@ -82,8 +82,7 @@ export class HostExecutionPermitStore {
   prepare(input: ExecutionPermitRequest): PreparedExecutionPermit {
     const req = input.admission
     assertAdaptiveRequest(req)
-    if (req.operation !== 'agent_turn' || req.taskIds.length !== 1 ||
-        req.taskIds[0] !== input.nativeTaskId) {
+    if (req.operation !== 'agent_turn' || req.taskIds.length !== 1) {
       throw new Error('one explicitly selected native Task is required')
     }
     if (![input.materializationRequestId, input.nativeRunId, input.nativeTaskId,
@@ -138,7 +137,8 @@ export class HostExecutionPermitStore {
         this.db.getDispatchContext(input.nativeTaskId)) {
       throw new Error('native_task_not_staged_and_ready')
     }
-    const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex')
+    const { nowMs: _clock, ...stableInput } = input
+    const hash = createHash('sha256').update(JSON.stringify(stableInput)).digest('hex')
     const prior = this.ledger.reserve(req, input.nowMs)
     if (prior.disposition === 'completed') {
       const stored = this.db.db.prepare(
