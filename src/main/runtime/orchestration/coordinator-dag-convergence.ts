@@ -5,9 +5,11 @@ export type DagConvergence = 'empty' | 'all-done' | 'active'
 
 export function evaluateDagConvergence(
   db: OrchestrationDb,
-  onLog: (msg: string) => void
+  onLog: (msg: string) => void,
+  taskRunId?: string
 ): DagConvergence {
-  const tasks = db.listTasks().filter(t => !isAdaptiveStagedTaskSpec(t.spec))
+  const tasks = db.listTasks(taskRunId ? { runId: taskRunId } : undefined)
+    .filter(t => !isAdaptiveStagedTaskSpec(t.spec))
   if (tasks.length === 0) {
     return 'empty'
   }
