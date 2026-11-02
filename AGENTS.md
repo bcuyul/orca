@@ -80,6 +80,8 @@ one test → minimal implementation → green → review/refactor. Do not invent
 future requirements or modify accepted tests to manufacture a pass. A small fix
 should not require a full backlog or multiple agents.
 
+ODD-inspired policy: `src/shared/adaptive-delivery/organic-routing.ts` recommends whether to work inline, delegate for a specific reason and write a recoverable record. These are separate choices; file count alone is never a reason for a subagent or full SDD pipeline. The policy never grants permissions.
+
 The opt-in skills are [adaptive-backlog](skills/adaptive-backlog/SKILL.md),
 [adaptive-story](skills/adaptive-story/SKILL.md) and
 [adaptive-pair](skills/adaptive-pair/SKILL.md). They recommend workflow, not
