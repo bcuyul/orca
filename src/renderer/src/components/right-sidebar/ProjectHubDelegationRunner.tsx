@@ -48,6 +48,8 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   const pending=rows.filter(d=>d.status==='planned'&&d.repoId===repoId&&d.hostId===hostId)
 
   async function prepare():Promise<void>{
+    if(busy){return}
+    setBusy(true)
     setNotice('')
     try{
       const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,profile,
@@ -58,6 +60,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         }})
       if(await onSave(next)){setSelected([]);setNotice('Lote preparado y guardado. Todavía no se inició ningún agente.')}
     }catch(e){setNotice(`No se pudo preparar: ${String(e)}`)}
+    finally{setBusy(false)}
   }
 
 
