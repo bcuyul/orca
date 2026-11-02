@@ -10,7 +10,7 @@ const keys = ['user', 'unlock', 'urgency'] as const
 export function weightsFromSwing(judgments: SwingJudgments): PriorityWeights {
   assertPriorityCriteria(judgments)
   const total = keys.reduce((sum, key) => sum + judgments[key], 0)
-  if (total <= 0) throw new Error('at least one swing must be positive')
+  if (total <= 0) { throw new Error('at least one swing must be positive') }
   // Keep exact normalization by deriving the last component from the first two.
   const user = judgments.user / total
   const unlock = judgments.unlock / total

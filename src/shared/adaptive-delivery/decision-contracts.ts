@@ -97,7 +97,7 @@ export function assertPriorityWeights(value: unknown): asserts value is Priority
 /** Reject malformed DAG input before calculating any score. */
 export function assertPriorityProblem(value: unknown): asserts value is PriorityProblem {
   if (!isRecord(value) || !Array.isArray(value.candidates) || value.candidates.length < 1 ||
-      value.candidates.length > 20) throw new Error('priority problem requires 1..20 candidates')
+      value.candidates.length > 20) { throw new Error('priority problem requires 1..20 candidates') }
   assertPriorityWeights(value.weights)
   const ids = new Set<string>()
   const dependencies = new Map<string, string[]>()
@@ -110,23 +110,23 @@ export function assertPriorityProblem(value: unknown): asserts value is Priority
         (raw.mandatory !== undefined && typeof raw.mandatory !== 'boolean') ||
         !Array.isArray(raw.dependsOn) || raw.dependsOn.length > 19 ||
         raw.dependsOn.some(d => typeof d !== 'string' || !idPattern.test(d)) ||
-        new Set(raw.dependsOn).size !== raw.dependsOn.length) throw new Error('invalid or duplicated priority candidate')
+        new Set(raw.dependsOn).size !== raw.dependsOn.length) { throw new Error('invalid or duplicated priority candidate') }
     assertPriorityCriteria(raw.criteria)
     ids.add(raw.id)
     dependencies.set(raw.id, raw.dependsOn as string[])
   }
   for (const deps of dependencies.values()) {
-    if (deps.some(id => !ids.has(id))) throw new Error('unknown priority dependency')
+    if (deps.some(id => !ids.has(id))) { throw new Error('unknown priority dependency') }
   }
   const visited = new Set<string>()
   const visiting = new Set<string>()
   function visit(id: string): void {
-    if (visiting.has(id)) throw new Error('priority DAG contains a cycle')
-    if (visited.has(id)) return
+    if (visiting.has(id)) { throw new Error('priority DAG contains a cycle') }
+    if (visited.has(id)) { return }
     visiting.add(id)
-    for (const dep of dependencies.get(id) ?? []) visit(dep)
+    for (const dep of dependencies.get(id) ?? []) { visit(dep) }
     visiting.delete(id)
     visited.add(id)
   }
-  for (const id of ids) visit(id)
+  for (const id of ids) { visit(id) }
 }

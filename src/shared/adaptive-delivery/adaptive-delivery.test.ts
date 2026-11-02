@@ -75,7 +75,7 @@ describe('swing weights and multicriteria valuation', () => {
       { user: Number.NaN, unlock: 0, urgency: 1 },
       { user: -0.1, unlock: 0.2, urgency: 0.9 },
       { user: 1, unlock: 0, urgency: Infinity }
-    ]) expect(() => assertPriorityWeights(w)).toThrow()
+    ]) { expect(() => assertPriorityWeights(w)).toThrow() }
   })
   it('rejects zero swings, invalid scores and non-finite effort', () => {
     expect(() => weightsFromSwing({ user: 0, unlock: 0, urgency: 0 })).toThrow()
