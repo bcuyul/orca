@@ -3,6 +3,7 @@ import type { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import type { AdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
 import { assertAdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
 import { isAdaptiveStagedTaskSpec } from '../orchestration/adaptive-staged-task'
+import { requireVerifiedAgentSandbox, type VerifiedAgentSandboxReader } from './execution-sandbox-policy'
 import type { HostAdmissionLedger } from './host-admission-ledger'
 import type { NativeMaterialization } from './native-plan-materializer'
 
@@ -59,7 +60,7 @@ export type PreparedExecutionPermit = {
 const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_:/.-]{0,199}$/
 const SQL = `CREATE TABLE IF NOT EXISTS adaptive_execution_permits (
   request_id TEXT PRIMARY KEY, input_hash TEXT NOT NULL UNIQUE,
-  decision_id TEXT NOT NULL, run_id TEXT NOT NULL, task_id TEXT NOT NULL UNIQUE,
+  decision_id TEXT NOT NULL UNIQUE, run_id TEXT NOT NULL, task_id TEXT NOT NULL UNIQUE,
   worktree_id TEXT NOT NULL, base_sha TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'prepared' CHECK(status = 'prepared')
 )`
@@ -74,7 +75,8 @@ export class HostExecutionPermitStore {
     private readonly db: OrchestrationDb,
     private readonly ledger: HostAdmissionLedger,
     private readonly decisions: VerifiedHostDecisionReader,
-    private readonly worktrees: VerifiedWorktreeReader
+    private readonly worktrees: VerifiedWorktreeReader,
+    private readonly sandbox: VerifiedAgentSandboxReader
   ) {
     db.db.exec(SQL)
   }
@@ -113,6 +115,12 @@ export class HostExecutionPermitStore {
         snapshot.worktreeId !== input.worktreeId || snapshot.baseSha !== req.baseSha) {
       throw new Error('worktree_snapshot_mismatch')
     }
+    // A worktree is a Git checkout, not an OS capability boundary.
+    // This host-reported preflight is not a substitute for launch-time enforcement.
+    requireVerifiedAgentSandbox(this.sandbox, {
+      hostId: req.hostId, repoId: req.repoId, worktreeId: input.worktreeId,
+      baseSha: req.baseSha
+    })
     const original = this.ledger.getReservation(input.materializationRequestId)
     if (!original || original.operation !== 'materialize_run' ||
         original.state !== 'completed' || !original.receipt) {
