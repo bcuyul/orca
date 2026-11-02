@@ -71,3 +71,21 @@ For a failed GitHub Actions run, inspect the failed jobs and retry with `gh run 
 # Tests
 
 Avoid adding low-value tests. These might be fine for development but offer negative value when checked in. [Anti-patterns](./docs/agents-md-refs/test-antipatterns.md)
+
+## Adaptive Delivery — Small Slices
+
+For Adaptive Delivery only, prefer a small working vertical slice over building a
+large stack layer-by-layer. Refine one story when it becomes eligible, then use
+one test → minimal implementation → green → review/refactor. Do not invent
+future requirements or modify accepted tests to manufacture a pass. A small fix
+should not require a full backlog or multiple agents.
+
+The opt-in skills are [adaptive-backlog](skills/adaptive-backlog/SKILL.md),
+[adaptive-story](skills/adaptive-story/SKILL.md) and
+[adaptive-pair](skills/adaptive-pair/SKILL.md). They recommend workflow, not
+runtime permissions. Scope, budget and human execution grants stay host-owned.
+
+**Git worktrees are not security sandboxes.** A worktree does not limit process
+filesystem, network, child-process or credential access. Never infer execution
+authority from a worktree, skill, prompt or accepted plan. For agent execution
+require real OS-enforced isolation, verified and enforced by the host at launch.
