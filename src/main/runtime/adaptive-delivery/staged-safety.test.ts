@@ -64,7 +64,7 @@ function fakeRuntime() {
 describe('staged native Run/Task is never an authorized Dispatch', () => {
   it('identifies only the exact staged provenance marker', () => {
     expect(isAdaptiveStagedTaskSpec(JSON.stringify({ source: 'adaptive-untrusted-plan' }))).toBe(true)
-    expect(isAdaptiveStagedTaskSpec(' \n\t' + JSON.stringify({ source: 'adaptive-untrusted-plan' }))).toBe(true)
+    expect(isAdaptiveStagedTaskSpec(` \n\t${JSON.stringify({ source: 'adaptive-untrusted-plan' })}`)).toBe(true)
     expect(isAdaptiveStagedTaskSpec(JSON.stringify({ source: 'legacy' }))).toBe(false)
     expect(isAdaptiveStagedTaskSpec('text adaptive-untrusted-plan')).toBe(false)
     expect(isAdaptiveStagedTaskSpec('{not valid')).toBe(false)
