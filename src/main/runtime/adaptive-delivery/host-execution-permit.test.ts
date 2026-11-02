@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import { HostAdmissionLedger } from './host-admission-ledger'
 import { HostExecutionPermitStore, type VerifiedExecutionDecision } from './host-execution-permit'
+import type { AgentSandboxEvidence } from './execution-sandbox-policy'
 import { NativePlanMaterializer } from './native-plan-materializer'
 import { emptyProjectHub, type HubDocument } from '../../../shared/project-hub-types'
 import { emptyHubIntelligence, type HubPlanProposal } from '../../../shared/project-hub-intelligence'
@@ -72,13 +73,19 @@ function setup(databasePath: string = ':memory:') {
     repoId: 'repo-permit', hostId: 'host-one',
     worktreeId: 'worktree-lab', baseSha: sha
   })) }
-  const permits = new HostExecutionPermitStore(db, ledger, approvals, worktrees)
+  const sandbox = { inspectSandbox: vi.fn((): AgentSandboxEvidence => ({
+    kind: 'os-enforced', sandboxId: 'test-sandbox',
+    policyDigest: 'b'.repeat(64),
+    filesystem: 'restricted', network: 'restricted',
+    childProcesses: 'confined'
+  })) }
+  const permits = new HostExecutionPermitStore(db, ledger, approvals, worktrees, sandbox)
   const input = {
     admission: request('agent_turn'), materializationRequestId: 'materialize-request',
     nativeRunId: materialized.runId, nativeTaskId: taskId,
     worktreeId: 'worktree-lab', decisionId: decision.id, nowMs: now
   }
-  return { db, ledger, permits, input, decision, approvals, worktrees, taskId }
+  return { db, ledger, permits, input, decision, approvals, worktrees, sandbox, taskId }
 }
 type TestContext = ReturnType<typeof setup>
 function testWithDb(fn: (ctx: TestContext) => void): void {
@@ -90,6 +97,19 @@ describe('Host execution permit: independent verified authority, still no Dispat
     ({ permits, input, ledger }) => {
       expect(() => permits.prepare(input)).toThrow(/unapproved_scope/)
       expect(ledger.getReservation(input.admission.requestId)).toBeUndefined()
+    }
+  ))
+
+  it('rejects a correct Git worktree when no OS sandbox evidence exists', () => testWithDb(
+    ({ db, permits, input, ledger, sandbox }) => {
+      ledger.recordHostApproval('execution-scope', scope('agent_turn'))
+      sandbox.inspectSandbox.mockReturnValueOnce({ kind: 'worktree-only' })
+      expect(() => permits.prepare(input)).toThrow(/execution_sandbox_required/)
+      sandbox.inspectSandbox.mockReturnValueOnce(null)
+      expect(() => permits.prepare(input)).toThrow(/execution_sandbox_required/)
+      expect(ledger.getReservation(input.admission.requestId)).toBeUndefined()
+      expect(db.db.prepare('SELECT COUNT(*) AS n FROM dispatch_contexts').get())
+        .toMatchObject({ n: 0 })
     }
   ))
 
@@ -219,7 +239,7 @@ describe('Host execution permit: independent verified authority, still no Dispat
       reopened = new OrchestrationDb(filename)
       const ledger = new HostAdmissionLedger(reopened)
       const second = new HostExecutionPermitStore(reopened, ledger,
-        first.approvals, first.worktrees)
+        first.approvals, first.worktrees, first.sandbox)
       expect(second.prepare({ ...first.input, nowMs: now + 1000 })).toEqual(receipt)
       expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM adaptive_execution_permits').get())
         .toMatchObject({ count: 1 })
