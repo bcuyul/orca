@@ -1,4 +1,5 @@
 import { isAdaptiveStagedTaskSpec } from './adaptive-staged-task'
+import { listCoordinatorTasks } from './coordinator-task-scope'
 import type { OrchestrationDb } from './db'
 import type { MessageRow, CoordinatorStatus } from './types'
 import { reconcileLifecycleMessage } from './lifecycle-reconciliation'
@@ -125,7 +126,7 @@ export class Coordinator {
       }
 
       // Stopping with incomplete tasks makes the run fail.
-      const tasks = this.scopedTasks()
+      const tasks = listCoordinatorTasks(this.db, this.opts.taskRunId)
       const allDone = tasks.every((t) => t.status === 'completed' || t.status === 'failed')
       const failedTasks = [
         ...new Set([
@@ -158,7 +159,7 @@ export class Coordinator {
   // Tasks must be pre-created until decomposition is implemented.
   private async decompose(): Promise<void> {
     this.state.phase = 'decomposing'
-    const existing = this.scopedTasks()
+    const existing = listCoordinatorTasks(this.db, this.opts.taskRunId)
     if (existing.length === 0) {
       throw new Error(
         'No tasks found. Create tasks with orchestration.taskCreate before running the coordinator.'
@@ -330,11 +331,6 @@ export class Coordinator {
       this.state.phase = 'done'
     }
     return convergence !== 'active'
-  }
-
-  private scopedTasks() {
-    return this.db.listTasks(this.opts.taskRunId ? { runId: this.opts.taskRunId } : undefined)
-      .filter(t => !isAdaptiveStagedTaskSpec(t.spec))
   }
 
   private sleep(ms: number): Promise<void> {
