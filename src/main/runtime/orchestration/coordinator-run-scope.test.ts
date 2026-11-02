@@ -38,6 +38,8 @@ describe('native Run-scoped Coordinator, fake worker only', () => {
       })
       await expect(coordinator.run()).rejects.toThrow(/Run not found/)
       expect(fake.calls).toHaveLength(0)
+      expect(db.db.prepare('SELECT COUNT(*) AS count FROM coordinator_runs').get())
+        .toMatchObject({ count: 0 })
     } finally { db.close() }
   })
 

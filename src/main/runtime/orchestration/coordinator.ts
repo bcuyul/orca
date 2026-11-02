@@ -78,6 +78,8 @@ export class Coordinator {
     failedTasks: string[]
     escalations: MessageRow[]
   }> {
+    // Validate the native Run before creating a coordinator_runs record.
+    if (this.opts.taskRunId) { this.db.requireRun(this.opts.taskRunId) }
     const run = this.db.createCoordinatorRun({
       spec: this.opts.spec,
       coordinatorHandle: this.opts.coordinatorHandle,
@@ -94,6 +96,7 @@ export class Coordinator {
     failedTasks: string[]
     escalations: MessageRow[]
   }> {
+    if (this.opts.taskRunId) { this.db.requireRun(this.opts.taskRunId) }
     return this.executeLoop(runId)
   }
 
