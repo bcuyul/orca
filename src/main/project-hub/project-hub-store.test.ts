@@ -82,7 +82,7 @@ describe('ProjectHubStore',()=>{
     ]},2)).toThrow(/Invalid/)
     expect(store.read(projectId).phase).toBe(1)
   })
-  it('persists an approved CLI plan and refuses erased IDs or an unreserved launch',()=>{
+  it('persists planned CLI delegations but refuses forged launch evidence',()=>{
     const db=new ProjectHubStore(root)
     const projectId='project:cli'
     const empty=emptyProjectHub(projectId)
@@ -102,15 +102,28 @@ describe('ProjectHubStore',()=>{
     expect(()=>db.save(projectId,{...saved,delegations:[{
       ...row,status:'launched',worktreeId:'wt1',terminalHandle:'term1'
     }]},2)).toThrow(/Delegation history/)
-    const reserved=db.save(projectId,{...saved,delegations:[{...row,status:'launching'}]},2)
-    expect(reserved.delegations?.[0].operationId).toBe(row.operationId)
-    const launched=db.save(projectId,{...reserved,delegations:[{
-      ...row,status:'launched',worktreeId:'wt1',terminalHandle:'term1'
-    }]},3)
-    expect(launched.delegations?.[0].worktreeId).toBe('wt1')
-    expect(()=>db.save(projectId,{...launched,delegations:[{
-      ...launched.delegations![0],agent:'claude'
-    }]},4)).toThrow(/Delegation history/)
+    // A renderer can author planned intentions, but never forge host launch facts.
+    expect(()=>db.save(projectId,{...saved,delegations:[{
+      ...row,status:'launching'
+    }]},2)).toThrow(/host-verified evidence/)
+    expect(()=>db.save(projectId,{...saved,delegations:[{
+      ...row,status:'launching',worktreeId:'fake-worktree'
+    }]},2)).toThrow(/host-verified evidence/)
+    expect(db.read(projectId).delegations?.[0].status).toBe('planned')
+    expect(db.read(projectId).revision).toBe(2)
+
+    // Legacy launch evidence remains readable and immutable; the renderer must
+    // not be able to alter an already-persisted CLI status or worktree identity.
+    const historic={...row,status:'launched' as const,worktreeId:'old-wt',terminalHandle:'old-pty'}
+    const historicalPath=hubFilePath(root,projectId)
+    writeFileSync(historicalPath,JSON.stringify({...saved,delegations:[historic]}),'utf8')
+    const old=db.read(projectId)
+    expect(old.delegations?.[0].status).toBe('launched')
+    expect(()=>db.save(projectId,{...old,delegations:[{
+      ...historic,worktreeId:'forged-wt'
+    }]},old.revision)).toThrow(/host-verified evidence/)
+    const kept=db.save(projectId,old,old.revision)
+    expect(kept.delegations?.[0].worktreeId).toBe('old-wt')
   })
   it('persists intelligence proposals without allowing old evidence to be rewritten',()=>{
     const db=new ProjectHubStore(root)
