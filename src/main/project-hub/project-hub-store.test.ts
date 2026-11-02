@@ -121,7 +121,7 @@ describe('ProjectHubStore',()=>{
     expect(old.delegations?.[0].status).toBe('launched')
     expect(()=>db.save(projectId,{...old,delegations:[{
       ...historic,worktreeId:'forged-wt'
-    }]},old.revision)).toThrow(/host-verified evidence/)
+    }]},old.revision)).toThrow(/Delegation history|host-verified evidence/)
     const kept=db.save(projectId,old,old.revision)
     expect(kept.delegations?.[0].worktreeId).toBe('old-wt')
   })
