@@ -59,6 +59,9 @@ export function routeAdaptiveWork(
   if (intent.risk === 'high' || intent.risk === 'critical') {
     delegateFor.push('independent_verifier')
   }
+  // Risk classification may never be weakened by a forged advisory gate.
+  const humanGate: IntentAssessment['humanGate'] =
+    intent.risk === 'high' || intent.risk === 'critical' ? 'mandatory' : intent.humanGate
   const readOnly = readOnlyKinds.has(intent.kind)
   // An unclear scope may be investigated, but not executed as invented requirements.
   const route: AdaptiveRoutingDecision['route'] = readOnly ? 'read_only' :
@@ -74,6 +77,6 @@ export function routeAdaptiveWork(
     route === 'clarify_first' ? 'unclear scope: do not write until clarified' :
       'routing is advisory, never execution consent'
   ]
-  return { route, record, delegateFor, humanGate: intent.humanGate,
+  return { route, record, delegateFor, humanGate,
     reasons, executionAuthorized: false }
 }

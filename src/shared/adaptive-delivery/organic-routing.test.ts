@@ -76,6 +76,12 @@ describe('ODD proportional routing: advisory, not execution authority', () => {
     })
   })
 
+  it('a forged advisory gate cannot downgrade high-risk work', () => {
+    const result = routeAdaptiveWork({ ...secure, humanGate: 'not_required' }, base)
+    expect(result.humanGate).toBe('mandatory')
+    expect(result.executionAuthorized).toBe(false)
+  })
+
   it('critical production deployment is escalated, independently verified', () => {
     const intent = analyzeIntent({ objective: 'Fix production deploy, trivial change' })
     expect(routeAdaptiveWork(intent, base)).toMatchObject({
