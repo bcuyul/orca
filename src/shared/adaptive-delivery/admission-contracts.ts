@@ -68,7 +68,7 @@ export function evaluateAdaptiveScope(
   }
   const reasons: string[] = []
   for (const field of ['projectId','repoId','hostId','baseSha','planId','planSha'] as const) {
-    if (scope[field] !== request[field]) { reasons.push('mismatch:' + field) }
+    if (scope[field] !== request[field]) { reasons.push(`mismatch:${field}`) }
   }
   if (!scope.operations.includes(request.operation)) { reasons.push('operation_not_permitted') }
   if (request.taskIds.some(id => !scope.allowedTaskIds.includes(id))) { reasons.push('tasks_out_of_scope') }
