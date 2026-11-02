@@ -1,4 +1,5 @@
 import type { OrchestrationDb } from './db'
+import { isAdaptiveStagedTaskSpec } from './adaptive-staged-task'
 
 export type DagConvergence = 'empty' | 'all-done' | 'active'
 
@@ -6,7 +7,7 @@ export function evaluateDagConvergence(
   db: OrchestrationDb,
   onLog: (msg: string) => void
 ): DagConvergence {
-  const tasks = db.listTasks()
+  const tasks = db.listTasks().filter(t => !isAdaptiveStagedTaskSpec(t.spec))
   if (tasks.length === 0) {
     return 'empty'
   }
