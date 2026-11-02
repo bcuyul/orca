@@ -13,7 +13,7 @@ describe('Project Hub document contracts',()=>{
     expect(()=>approveHubPhase(doc,'',new Date().toISOString())).toThrow()
     expect(()=>approveHubPhase(doc,'Validación humana',new Date().toISOString())).toThrow(/evidencias/)
     const qualityEvidence=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[
-      '1:'+key,{status:'verified' as const,note:'Evidencia manual registrada',at:new Date().toISOString()}
+      `1:${key}`,{status:'verified' as const,note:'Evidencia manual registrada',at:new Date().toISOString()}
     ]))
     const qualified={...doc,qualityEvidence}
     expect(hasHubPhaseEvidence(qualified)).toBe(true)
@@ -41,7 +41,7 @@ describe('Project Hub document contracts',()=>{
     const base=emptyProjectHub('repo:approval')
     const at=new Date().toISOString()
     const qualityEvidence=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[
-      '1:'+key,{status:'verified' as const,note:'Passed manually',at}
+      `1:${key}`,{status:'verified' as const,note:'Passed manually',at}
     ]))
     const ready={...base,qualityEvidence}
     expect(hasHubPhaseEvidence(ready)).toBe(true)

@@ -48,7 +48,7 @@ describe('ProjectHubStore',()=>{
     const approvals=[approval,{from:2,to:3,note:'Segunda validación',at}]
     const phaseEvidence=Object.fromEntries([1,2].flatMap(phase=>
       ['acceptance','flow','ci','owner'].map(key=>[
-        phase+':'+key,{status:'verified' as const,note:'Evidencia revisada',at}
+        `${phase}:${key}`,{status:'verified' as const,note:'Evidencia revisada',at}
       ])
     ))
     const skipped={...initial,phase:3,approvals,qualityEvidence:phaseEvidence}
@@ -57,7 +57,7 @@ describe('ProjectHubStore',()=>{
     expect(store.read(projectId).revision).toBe(1)
     expect(()=>store.save(projectId,{...initial,phase:2,approvals:[approval]},1)).toThrow(/evidence/)
     const qualityEvidence=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[
-      '1:'+key,{status:'verified' as const,note:'Evidencia revisada',at:new Date().toISOString()}
+      `1:${key}`,{status:'verified' as const,note:'Evidencia revisada',at:new Date().toISOString()}
     ]))
     const next=store.save(projectId,{...initial,phase:2,approvals:[approval],qualityEvidence},1)
     expect(next.phase).toBe(2)
@@ -70,7 +70,7 @@ describe('ProjectHubStore',()=>{
     const initial=store.save(projectId,emptyProjectHub(projectId),0)
     const at=new Date().toISOString()
     const template={status:'verified' as const,note:'checked',at}
-    const notes=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>['1:'+key,template]))
+    const notes=Object.fromEntries(['acceptance','flow','ci','owner'].map(key=>[`1:${key}`,template]))
     expect(()=>store.save(projectId,{...initial,qualityEvidence:{
       ...notes,'1:ci':{...template,note:'ok'}
     }},1)).toThrow(/Invalid/)
