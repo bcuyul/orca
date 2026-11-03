@@ -1,6 +1,7 @@
 /** Human-gated intelligence records. No agent launch, git write or CI action here. */
 import { useState } from 'react'
 import type { HubDocument } from '../../../../shared/project-hub-types'
+import type { NativePlanPreview } from '../../../../shared/native-plan-preview'
 import {
   emptyHubIntelligence, isHubIntelligence, approvedHubMemories,
   type HubIntelligence, type HubHumanDecision, type HubBlocker,
@@ -58,6 +59,9 @@ function DecisionEditor({ subject, subjectId, busy, onDecide }: DecisionEditorPr
 export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props): React.JSX.Element {
   const state = doc.intelligence ?? emptyHubIntelligence()
   const [notice, setNotice] = useState('')
+  const [preview, setPreview] = useState<NativePlanPreview | null>(null)
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewError, setPreviewError] = useState('')
   const [rawPlan, setRawPlan] = useState('')
   const [blockerForReplan, setBlockerForReplan] = useState('')
   const [planForBlocker, setPlanForBlocker] = useState('')
@@ -78,11 +82,27 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
   const blockPlan = state.plans.find(p => p.id === planForBlocker)
   const reviewPlan = state.plans.find(p => p.id === qaPlan)
   const decisions = new Map(state.decisions.map(d => [`${d.subject}:${d.subjectId}`, d] as const))
+  const currentPreview = preview?.projectId === doc.projectId && preview.revision === doc.revision ? preview : null
   async function persist(next: HubIntelligence, success: string): Promise<boolean> {
     if (!isHubIntelligence(next)) { setNotice('Registro inválido: revisa IDs, DAG y evidencia.'); return false }
     const ok = await onSave({ ...doc, intelligence: next })
     setNotice(ok ? success : 'No se pudo guardar; revisa el mensaje de Project Hub.')
     return ok
+  }
+  async function inspectNativePlan(planId: string): Promise<void> {
+    setPreviewBusy(true)
+    setPreviewError('')
+    try {
+      const response = await window.api.projectHub.previewNativePlan({
+        projectId: doc.projectId, planId, expectedRevision: doc.revision
+      })
+      setPreview(response)
+    } catch (error) {
+      setPreview(null)
+      setPreviewError(String(error))
+    } finally {
+      setPreviewBusy(false)
+    }
   }
   async function copy(text: string): Promise<void> {
     try { await window.api.ui.writeClipboardText(text); setNotice('Encargo copiado. Revisa el contexto antes de entregarlo a un CLI.') }
@@ -148,7 +168,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
     <h3 className="text-sm font-semibold">Inteligencia de agentes · laboratorio</h3>
     <p className="text-muted-foreground">
       Propuestas auditables; no se ejecutan ni se convierten en éxito automáticamente.
-      El bridge con Runs/Tasks/Dispatches y los agentes autónomos sigue pendiente.
+      La proyección nativa es de solo lectura. Materialización, Dispatch y ejecución requieren permisos separados del host.
     </p>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Atlas · planificación y DAG</h4>
@@ -181,9 +201,25 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
           </li>)}</ul>
           {decision ? <p className="mt-2 text-muted-foreground">
             {decision.verdict === 'accepted' ? 'Aprobado manualmente' : 'Rechazado manualmente'} · {decision.justification}
-          </p> : <DecisionEditor subject="plan" subjectId={p.id} busy={busy} onDecide={decide}/>} 
+          </p> : <DecisionEditor subject="plan" subjectId={p.id} busy={busy} onDecide={decide}/>}
+          <button className={action} type="button" disabled={busy || previewBusy}
+            onClick={() => void inspectNativePlan(p.id)}>
+            Inspeccionar conversión nativa (sin ejecutar)
+          </button>
+          {currentPreview?.planId === p.id && <div className="mt-2 space-y-2 rounded border border-border p-2" role="status">
+            <p><strong>Vista previa del Run de Orca</strong> · revisión {currentPreview.revision}</p>
+            <p>{currentPreview.approval === 'accepted' ? 'Plan aprobado manualmente' :
+              currentPreview.approval === 'rejected' ? 'Plan rechazado' : 'Plan sin aprobar'} · no autoriza ejecución</p>
+            <p className="break-all text-muted-foreground">SHA del plan: {currentPreview.planSha}</p>
+            <ol className="ml-4 list-decimal">{currentPreview.tasks.map(t => <li key={t.id}>
+              {t.id} · {t.title} ({t.role}) · {t.dependsOn.length ?
+                `Depende de: ${t.dependsOn.join(', ')}` : 'Sin dependencias'}
+            </li>)}</ol>
+            <p className="font-medium">Solo lectura: no se creó Run, Task ni Dispatch. Los workers permanecen bloqueados.</p>
+          </div>}
         </div>
       })}
+      {previewError && <p role="alert" className="text-destructive">Vista previa rechazada: {previewError}</p>}
     </section>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Bloqueos · replanificación supervisada</h4>
