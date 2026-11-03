@@ -198,11 +198,9 @@ test('Project Hub resize release over Explorer never activates a different tab @
   )
   await orcaPage.mouse.up()
 
-  // Let Electron dispatch the synthetic click and the overlay's next-frame
-  // cleanup before checking the selected route, not just the mouseup state.
-  await orcaPage.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  }))
+  // Browser-side animation frames can pause on backgrounded Electron windows.
+  // Wait on the runner clock for the post-mouseup click and overlay cleanup.
+  await orcaPage.waitForTimeout(150)
   await expect(hub).toBeVisible()
   const route = await orcaPage.evaluate(() => {
     const state = window.__store?.getState()
