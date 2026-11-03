@@ -65,3 +65,11 @@ it('removes a drag shield immediately when the resizer unmounts', () => {
   unmount()
   expect(document.querySelector('[data-sidebar-resize-overlay]')).toBeNull()
 })
+
+it('removes the shield immediately if the window loses focus during a drag', () => {
+  const { getByTestId } = render(<ResizeHarness />)
+  fireEvent.mouseDown(getByTestId('resize-grip'), { clientX: 400 })
+  expect(document.querySelector('[data-sidebar-resize-overlay]')).not.toBeNull()
+  fireEvent.blur(window)
+  expect(document.querySelector('[data-sidebar-resize-overlay]')).toBeNull()
+})
