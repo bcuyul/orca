@@ -127,7 +127,7 @@ export function renderForgeImplementationPrompt(
     'Return exact base/head commit SHAs, changed files, diff reference, tests and failures.',
     'An independent QA reviewer must inspect the actual diff. No reported result is verified by Orca.',
     'The user can later record this output as unverified external evidence in Project Hub.'
-  ].join('\\n')
+  ].join('\n')
 }
 
 export function renderQaReviewPrompt(
