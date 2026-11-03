@@ -26,6 +26,7 @@ import {
   restrictWindowsPathSync,
   writeRestrictedWindowsFile
 } from './secure-path-windows-acl'
+import { reportSecurePathHardening } from './secure-path-hardening-report'
 import {
   getHardenedPathCacheEntry,
   hardenedPathCacheEntriesMatch,
@@ -57,13 +58,23 @@ function hardenWindowsDirectoryOnce(dirPath: string): void {
   // Cache before the ACL lands so concurrent writes don't restorm; a failure drops it, under the retry budget.
   hardenedDirectoryPathsThisProcess.set(dirPath, true)
   // Why async: a directory rewrite propagates to every descendant, ~2 s on a 29k-entry userData.
-  const pending = restrictWindowsDirectory(dirPath).then((restricted) => {
-    recordHardeningOutcome(dirPath, restricted)
-    if (!restricted) {
+  const pending = restrictWindowsDirectory(dirPath).then(
+    (restricted) => {
+      recordHardeningOutcome(dirPath, restricted)
+      if (!restricted) {
+        hardenedDirectoryPathsThisProcess.delete(dirPath)
+      }
+      return restricted
+    },
+    (error: unknown) => {
+      // An unexpected addon rejection must not leave a permanently cached
+      // "secure" directory or disappear from security diagnostics.
       hardenedDirectoryPathsThisProcess.delete(dirPath)
+      recordHardeningOutcome(dirPath, false)
+      reportSecurePathHardening(dirPath, 'apply', String(error))
+      return false
     }
-    return restricted
-  })
+  )
   pendingWindowsDirectoryHardening.add(pending)
   // Observe either outcome and release the registry. A rejection must not
   // produce an unhandled promise while the secure path remains unverified.
