@@ -1,17 +1,18 @@
 // @vitest-environment happy-dom
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useSidebarResize } from './useSidebarResize'
 
 function ResizeHarness(): JSX.Element {
+  const [width, setWidth] = useState(400)
   const { containerRef, onResizeStart } = useSidebarResize<HTMLDivElement>({
     isOpen: true,
-    width: 400,
+    width,
     minWidth: 220,
     maxWidth: 800,
     deltaSign: -1,
-    setWidth: () => {}
+    setWidth
   })
   return (
     <div ref={containerRef}>
@@ -36,6 +37,7 @@ it('keeps the drag shield through mouseup, swallows the trailing click and then 
   document.addEventListener('click', onDocumentClick)
   try {
     fireEvent.mouseDown(getByTestId('resize-grip'), { clientX: 500 })
+    fireEvent.mouseMove(window, { clientX: 440 })
     const overlay = document.querySelector<HTMLElement>('[data-sidebar-resize-overlay]')
     expect(overlay).not.toBeNull()
 
