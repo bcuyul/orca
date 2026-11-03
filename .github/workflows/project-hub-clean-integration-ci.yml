@@ -1,8 +1,6 @@
 name: Clean Project Hub Integration
 
 on:
-  push:
-    branches: [integration/project-hub-adaptive-clean]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, integration/project-hub-adaptive-clean]
