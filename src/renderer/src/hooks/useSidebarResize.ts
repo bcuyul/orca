@@ -75,11 +75,37 @@ export function useSidebarResize<T extends HTMLElement>({
     overlayRef.current = null
   }, [])
 
-  const resetDocumentStyles = useCallback(() => {
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    removeDragOverlay()
-  }, [removeDragOverlay])
+  const resetDocumentStyles = useCallback(
+    (afterMouseUp = false) => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+
+      const overlay = overlayRef.current
+      if (!afterMouseUp || !overlay) {
+        removeDragOverlay()
+        return
+      }
+
+      // The browser synthesizes click *after* mouseup. Removing the resize
+      // overlay inside mouseup lets a click hit the Explorer activity button
+      // beneath the release point, even though the gesture began on the
+      // splitter. Retain the overlay through that click, then remove it.
+      overlay.addEventListener(
+        'click',
+        (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+        },
+        { capture: true, once: true }
+      )
+      window.requestAnimationFrame(() => {
+        if (overlayRef.current === overlay) {
+          removeDragOverlay()
+        }
+      })
+    },
+    [removeDragOverlay]
+  )
 
   const applyRenderedWidth = useCallback(
     (nextWidth: number) => {
@@ -117,7 +143,8 @@ export function useSidebarResize<T extends HTMLElement>({
       frameRef.current = null
     }
 
-    resetDocumentStyles()
+    // Mouseup needs the overlay for the subsequent synthetic click.
+    resetDocumentStyles(true)
 
     const finalWidth = draftWidthRef.current
     applyRenderedWidth(finalWidth)
