@@ -19,6 +19,8 @@ on:
       - 'docs/project-hub/**'
       - 'tests/e2e/project-hub-native-smoke.spec.ts'
       - 'tests/e2e/project-hub-pointer-smoke.spec.ts'
+      - 'config/scripts/dev-fresh-profile.mjs'
+      - 'config/scripts/dev-fresh-pnpm-command*.mjs'
 
 permissions:
   contents: read
@@ -60,6 +62,8 @@ jobs:
             echo "Rejected: unverified experimental Project Hub HTML plugin"
             exit 1
           fi
+      - name: Verify cross-platform fresh-profile pnpm launcher
+        run: node --test config/scripts/dev-fresh-pnpm-command.test.mjs
       - name: Oxlint native integration paths
         run: |
           pnpm exec oxlint \
