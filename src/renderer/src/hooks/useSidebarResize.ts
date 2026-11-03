@@ -221,6 +221,7 @@ export function useSidebarResize<T extends HTMLElement>({
       // A viewport overlay captures mouseup over native plugins such as PDF embeds, preventing a stuck resize.
       if (!overlayRef.current) {
         const overlay = document.createElement('div')
+        overlay.setAttribute('data-sidebar-resize-overlay', 'true')
         overlay.style.position = 'fixed'
         overlay.style.inset = '0'
         overlay.style.zIndex = '2147483647'
