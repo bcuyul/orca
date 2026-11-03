@@ -130,7 +130,7 @@ export function useSidebarResize<T extends HTMLElement>({
     onDraftWidthChange?.(width)
   }, [applyRenderedWidth, onDraftWidthChange, width])
 
-  const stopResize = useCallback(() => {
+  const stopResize = useCallback((event?: Event) => {
     if (!isResizingRef.current) {
       return
     }
@@ -143,8 +143,8 @@ export function useSidebarResize<T extends HTMLElement>({
       frameRef.current = null
     }
 
-    // Mouseup needs the overlay for the subsequent synthetic click.
-    resetDocumentStyles(true)
+    // Only mouseup synthesizes a click. A window blur must clean up immediately.
+    resetDocumentStyles(event?.type === 'mouseup')
 
     const finalWidth = draftWidthRef.current
     applyRenderedWidth(finalWidth)
