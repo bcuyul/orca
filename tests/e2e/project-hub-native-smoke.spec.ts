@@ -152,3 +152,64 @@ test('Project Hub remains selected during native window and sidebar resize @proj
     await assertHubSelected(`right sidebar drag delta ${delta}`)
   }
 })
+
+test('Project Hub resize release over Explorer never activates a different tab @project-hub-click-through', async ({
+  orcaPage
+}) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) {
+      throw new Error('The isolated Electron renderer store is unavailable')
+    }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+    state.setRightSidebarWidth(560)
+  })
+
+  const hub = orcaPage.getByText('PROJECT HUB · NATIVO')
+  await expect(hub).toBeVisible()
+  const splitter = orcaPage.getByTestId('right-sidebar-resize-handle')
+  const explorer = orcaPage.getByRole('button', { name: /^Explorer(?: \\(|$)/ }).first()
+  await expect(explorer).toBeVisible()
+
+  const splitterBounds = await splitter.boundingBox()
+  const explorerBounds = await explorer.boundingBox()
+  if (!splitterBounds || !explorerBounds) {
+    throw new Error('Resize splitter and Explorer activity icon must be measurable')
+  }
+  const beginX = splitterBounds.x + splitterBounds.width / 2
+  const beginY = explorerBounds.y + explorerBounds.height / 2
+  await orcaPage.mouse.move(beginX, beginY)
+  await orcaPage.mouse.down()
+  await orcaPage.mouse.move(beginX + 40, beginY, { steps: 6 })
+
+  // Refresh coordinates during the drag: the activity bar itself shifts with
+  // the flex sidebar width. Release directly over the Explorer icon area.
+  const updatedExplorerBounds = await explorer.boundingBox()
+  if (!updatedExplorerBounds) {
+    throw new Error('Explorer activity icon vanished during splitter drag')
+  }
+  await orcaPage.mouse.move(
+    updatedExplorerBounds.x + updatedExplorerBounds.width / 2,
+    updatedExplorerBounds.y + updatedExplorerBounds.height / 2,
+    { steps: 4 }
+  )
+  await orcaPage.mouse.up()
+
+  // Let Electron dispatch the synthetic click and the overlay's next-frame
+  // cleanup before checking the selected route, not just the mouseup state.
+  await orcaPage.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
+  await expect(hub).toBeVisible()
+  const route = await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    return {
+      selected: state?.rightSidebarTab,
+      effective: state?.rightSidebarEffectiveTab
+    }
+  })
+  expect(route).toEqual({ selected: 'project-hub', effective: 'project-hub' })
+})
