@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
+import type { JSX } from 'react'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useSidebarResize } from './useSidebarResize'
 
-function ResizeHarness(): React.JSX.Element {
+function ResizeHarness(): JSX.Element {
   const { containerRef, onResizeStart } = useSidebarResize<HTMLDivElement>({
     isOpen: true,
     width: 400,
