@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnProcess } from '@orca/process-host'
 import { getDefaultSeedSource, seedDevProfile } from './dev-profile-seed.mjs'
+import { resolveDevFreshPnpmCommand } from './dev-fresh-pnpm-command.mjs'
 
 const USAGE = `Usage: pnpm dev:fresh [--keep] [--seed-from[=<profile dir>]] [-- <pnpm dev args>]
 
@@ -69,9 +70,12 @@ try {
 }
 
 console.error(`[dev-fresh-profile] using userData=${profileDir}`)
+// Windows package managers expose pnpm.cmd, which cannot be spawned as a bare
+// executable by the process host. Use pnpm's JS entrypoint via Node instead.
+const { program, args } = resolveDevFreshPnpmCommand({ devArgs: options.devArgs })
 const child = spawnProcess({
-  program: 'pnpm',
-  args: ['dev', ...options.devArgs],
+  program,
+  args,
   env: {
     ...process.env,
     ORCA_DEV_USER_DATA_PATH: profileDir,
