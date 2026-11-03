@@ -1,6 +1,18 @@
 name: Clean Project Hub Integration
 
 on:
+  # Test the stacked branch even when GitHub does not schedule PR checks for a non-default base.
+  push:
+    branches: [feat/project-hub-native-plan-preview]
+    paths:
+      - '.github/workflows/project-hub-clean-integration-ci.yml'
+      - 'src/main/project-hub/**'
+      - 'src/main/runtime/adaptive-delivery/**'
+      - 'src/shared/native-plan-preview.ts'
+      - 'src/main/ipc/project-hub.ts'
+      - 'src/preload/api/project-hub*'
+      - 'src/renderer/src/components/right-sidebar/ProjectHubIntelligencePanel.tsx'
+      - 'tests/e2e/project-hub-native-smoke.spec.ts'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, integration/project-hub-adaptive-clean]
