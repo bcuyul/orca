@@ -32,6 +32,20 @@ export type HubMemoryCandidate = {
   evidenceRef: string
   createdAt: string
 }
+/** External work attestation, never authenticated agent execution or verified CI. */
+export type HubImplementationEvidence = {
+  id: string
+  planId: string
+  taskId: string
+  executor: 'external-unverified'
+  executorLabel: string
+  baseSha: string
+  headSha: string
+  evidenceRef: string
+  testSummary: string
+  createdAt: string
+  previousImplementationId?: string
+}
 export type HubQualityReview = {
   id: string
   planId: string
@@ -41,6 +55,8 @@ export type HubQualityReview = {
   evidenceRef: string
   findings: string
   createdAt: string
+  implementationId?: string
+  reviewerLabel?: string
 }
 export type HubHumanDecision = {
   id: string
@@ -56,6 +72,8 @@ export type HubIntelligence = {
   memories: HubMemoryCandidate[]
   reviews: HubQualityReview[]
   decisions: HubHumanDecision[]
+  /** Optional for backwards-compatible persisted schema-1 documents. */
+  implementations?: HubImplementationEvidence[]
 }
 
 const identifier = (s: unknown): s is string =>
@@ -66,10 +84,10 @@ const record = (x: unknown): x is Record<string, unknown> =>
   typeof x === 'object' && x !== null && !Array.isArray(x)
 const timestamp = (s: unknown): s is string =>
   typeof s === 'string' && s.length <= 50 && /^\d{4}-\d\d-\d\dT/.test(s)
-const MAX = { plans: 30, blockers: 100, memories: 100, reviews: 100, decisions: 130 }
+const MAX = { plans: 30, blockers: 100, memories: 100, reviews: 100, decisions: 130, implementations: 100 }
 const roles = ['atlas', 'forge', 'flow', 'data', 'qa']
 export const emptyHubIntelligence = (): HubIntelligence => ({
-  plans: [], blockers: [], memories: [], reviews: [], decisions: []
+  plans: [], blockers: [], memories: [], reviews: [], decisions: [], implementations: []
 })
 
 /** Plan is a bounded DAG; cycles, unknown dependencies and duplicate task IDs fail closed. */
@@ -109,6 +127,7 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
   if (!record(x)) { return false }
   for (const [key, max] of Object.entries(MAX)) {
     const rows = x[key]
+    if (key === 'implementations' && rows === undefined) { continue }
     if (!Array.isArray(rows) || rows.length > max) { return false }
   }
   const plans: unknown[] = Array.isArray(x.plans) ? x.plans : []
@@ -116,6 +135,7 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
   const memories: unknown[] = Array.isArray(x.memories) ? x.memories : []
   const reviews: unknown[] = Array.isArray(x.reviews) ? x.reviews : []
   const decisions: unknown[] = Array.isArray(x.decisions) ? x.decisions : []
+  const implementations: unknown[] = Array.isArray(x.implementations) ? x.implementations : []
   const planIds = new Set<string>()
   const plansById = new Map<string, HubPlanProposal>()
   const memoryIds = new Set<string>()
@@ -158,10 +178,13 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
       !identifier(value.taskId) || !['qa','human'].includes(String(value.reviewer)) ||
       !['approved','changes-requested','inconclusive'].includes(String(value.verdict)) ||
       !content(value.findings, 2000) || !content(value.evidenceRef, 600) ||
+      (value.implementationId !== undefined && !identifier(value.implementationId)) ||
+      (value.reviewerLabel !== undefined && !content(value.reviewerLabel, 80)) ||
       !timestamp(value.createdAt)) { return false }
     if (!plansById.get(value.planId)?.tasks.some(t => t.id === value.taskId)) { return false }
   }
   const decided = new Set<string>()
+  const acceptedPlans = new Set<string>()
   for (const value of decisions) {
     if (!record(value) || !takeId(value.id) ||
       !['plan','memory'].includes(String(value.subject)) ||
@@ -172,6 +195,45 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
     const key = `${value.subject}:${value.subjectId}`
     if (decided.has(key)) { return false }
     decided.add(key)
+    if (value.subject === 'plan' && value.verdict === 'accepted') {
+      acceptedPlans.add(value.subjectId as string)
+    }
+  }
+  // The client may attest external work, but never establish authenticated CLI authority.
+  const reports = new Map<string, HubImplementationEvidence>()
+  const latestByTask = new Map<string, HubImplementationEvidence>()
+  for (const value of implementations) {
+    if (!record(value) || !takeId(value.id) || !identifier(value.planId) ||
+        !identifier(value.taskId) || value.executor !== 'external-unverified' ||
+        !content(value.executorLabel, 80) || !/^[0-9a-f]{40}$/i.test(String(value.baseSha)) ||
+        !/^[0-9a-f]{40}$/i.test(String(value.headSha)) ||
+        !content(value.evidenceRef, 600) || !content(value.testSummary, 1200) ||
+        !timestamp(value.createdAt) ||
+        (value.previousImplementationId !== undefined &&
+          !identifier(value.previousImplementationId))) { return false }
+    const task = plansById.get(value.planId as string)?.tasks.find(t => t.id === value.taskId)
+    if (!task || !['forge', 'flow', 'data'].includes(task.role) ||
+        !acceptedPlans.has(value.planId as string)) { return false }
+    const key = `${value.planId}:${value.taskId}`
+    const previous = latestByTask.get(key)
+    if (previous?.id !== value.previousImplementationId) { return false }
+    reports.set(value.id as string, value as HubImplementationEvidence)
+    latestByTask.set(key, value as HubImplementationEvidence)
+  }
+  for (const value of reviews) {
+    if (!record(value)) { return false }
+    if (value.implementationId === undefined) {
+      if (value.reviewerLabel !== undefined) { return false }
+      continue
+    }
+    const implementation = reports.get(value.implementationId as string)
+    if (!implementation || value.planId !== implementation.planId ||
+        value.taskId !== implementation.taskId ||
+        !content(value.reviewerLabel, 80) ||
+        value.reviewerLabel.trim().toLocaleLowerCase('en') ===
+          implementation.executorLabel.trim().toLocaleLowerCase('en')) {
+      return false
+    }
   }
   return true
 }
@@ -183,10 +245,12 @@ export function isHubIntelligenceTransition(
 ): boolean {
   const a = before ?? emptyHubIntelligence()
   const b = after ?? emptyHubIntelligence()
-  return (Object.keys(MAX) as (keyof HubIntelligence)[]).every(key =>
-    b[key].length >= a[key].length &&
-    a[key].every((row, i) => JSON.stringify(row) === JSON.stringify(b[key][i]))
-  )
+  return (Object.keys(MAX) as (keyof HubIntelligence)[]).every(key => {
+    const beforeRows = a[key] ?? []
+    const afterRows = b[key] ?? []
+    return afterRows.length >= beforeRows.length &&
+      beforeRows.every((row, i) => JSON.stringify(row) === JSON.stringify(afterRows[i]))
+  })
 }
 
 /** Explicitly approved memories only. No automatic cross-project data sharing. */
