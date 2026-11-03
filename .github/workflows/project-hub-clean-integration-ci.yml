@@ -21,6 +21,8 @@ on:
       - 'tests/e2e/project-hub-pointer-smoke.spec.ts'
       - 'src/renderer/src/hooks/useSidebarResize.ts'
       - 'src/renderer/src/hooks/useSidebarResize.test.tsx'
+      - 'src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts'
+      - 'src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts'
       - 'src/renderer/src/components/right-sidebar/index.tsx'
       - 'config/scripts/dev-fresh-profile.mjs'
       - 'config/scripts/dev-fresh-pnpm-command*.mjs'
@@ -82,6 +84,7 @@ jobs:
             src/renderer/src/components/right-sidebar/ProjectHubPanel.tsx \
             src/renderer/src/hooks/useSidebarResize.ts \
             src/renderer/src/hooks/useSidebarResize.test.tsx
+            src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
       - name: Run Project Hub, Adaptive and Coordinator regression tests
         run: |
           pnpm exec vitest run --config config/vitest.config.ts \
