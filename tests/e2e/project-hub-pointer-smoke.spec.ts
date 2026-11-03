@@ -52,8 +52,22 @@ test('Project Hub accepts native mouse clicks while refusing CLI execution @proj
     hasText: 'Ejecución de agentes deshabilitada'
   })).toBeVisible()
 
-  await pointerClick(orcaPage, orcaPage.getByRole('checkbox').first())
-  await pointerClick(orcaPage, orcaPage.getByRole('button', { name: /Preparar 1 historia/ }))
+  // A native mouse click may occur while the sidebar is being reconciled on
+  // Windows. Retry selection only when the checkbox is actually unchecked;
+  // never retry the preparation mutation itself.
+  const storyCheckbox = orcaPage.getByRole('checkbox').first()
+  const prepareButton = orcaPage.getByRole('button', { name: /Preparar 1 historia/ })
+  await expect.poll(async () => {
+    if (!(await storyCheckbox.isChecked())) {
+      await pointerClick(orcaPage, storyCheckbox)
+    }
+    return storyCheckbox.isChecked() && prepareButton.isVisible()
+  }, {
+    timeout: 30_000,
+    intervals: [300, 600, 1_000],
+    message: 'Pointer must select the story and activate preparation'
+  }).toBe(true)
+  await pointerClick(orcaPage, prepareButton)
   await expect(orcaPage.getByText('Lote preparado y guardado.', { exact: false })).toBeVisible()
   await expect(orcaPage.getByRole('button', {
     name: /Iniciar y enviar instrucciones/
