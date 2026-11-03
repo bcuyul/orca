@@ -48,12 +48,12 @@ export function openDecisionGateFromMessage(
   onLog(`Task ${payload.taskId} blocked on decision gate`)
 }
 
-export function reblockTasksWithPendingGates(db: OrchestrationDb): void {
+export function reblockTasksWithPendingGates(db: OrchestrationDb, taskRunId?: string): void {
   // Only explicit human gate resolution may unblock these approval checkpoints.
   const pendingGates = db.listGates({ status: 'pending' })
   for (const gate of pendingGates) {
     const task = db.getTask(gate.task_id)
-    if (task && task.status !== 'blocked') {
+    if (task && (!taskRunId || task.run_id === taskRunId) && task.status !== 'blocked') {
       db.updateTaskStatus(gate.task_id, 'blocked')
     }
   }

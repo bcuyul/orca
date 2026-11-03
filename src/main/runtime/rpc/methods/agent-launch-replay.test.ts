@@ -3,6 +3,7 @@ import '../unused-default-rpc-methods.test-fixture'
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { closeTestJournalHostDatabase } from '../../../native-chat/agent-session-journal/journal-host-database-test-support'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AGENT_LAUNCH_RUNTIME_CAPABILITY } from '../../../../shared/agent-launch-runtime-capability'
@@ -84,7 +85,7 @@ const ROTATED_CREDENTIAL_CLIENT: Partial<RpcContext> = {
 let directory: string
 let store: AgentSessionRecordStore
 
-type LaunchParams = AgentLaunchFingerprintInput & { operationId?: string }
+type LaunchParams = AgentLaunchFingerprintInput & { operationId?: string; launchSource?: string }
 
 function createLaunch(overrides: Partial<LaunchParams> = {}): LaunchParams {
   return {
@@ -122,6 +123,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   setAgentLaunchRecordStore(null)
+  closeTestJournalHostDatabase(directory)
   await rm(directory, { recursive: true, force: true })
 })
 
@@ -609,5 +611,20 @@ describe('the inner attach reserves under its own id', () => {
       now: NOW
     })
     expect(child.decision).toBe('admit')
+  })
+})
+
+describe('Project Hub launch quarantine', () => {
+  it('refuses the Project Hub launch before worktree or session side effects', async () => {
+    const runtime = runtimeStub()
+    await expect(launch(createLaunch({
+      launchSource: 'project-hub'
+    }), runtime)).rejects.toThrow(
+      'project_hub_launch_requires_verified_host_authorization'
+    )
+    expect(runtime.createManagedWorktree).not.toHaveBeenCalled()
+    expect(runtime.createTerminal).not.toHaveBeenCalled()
+    expect(createStructuredSession).not.toHaveBeenCalled()
+    expect(store.listOperationRows()).toHaveLength(0)
   })
 })

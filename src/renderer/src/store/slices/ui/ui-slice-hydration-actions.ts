@@ -122,7 +122,16 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           ),
           sidebarOpen: typeof ui.sidebarOpen === 'boolean' ? ui.sidebarOpen : true,
           rightSidebarOpen: typeof ui.rightSidebarOpen === 'boolean' ? ui.rightSidebarOpen : true,
-          ...normalizeRightSidebarRoute(ui.rightSidebarTab, ui.rightSidebarExplorerView),
+          // The right activity tab is a per-window navigation choice. A sync
+          // broadcast from a width change or another window must not replace
+          // a tab selected after startup (e.g. Project Hub -> Explorer).
+          // Startup still restores the persisted route normally.
+          ...(source === 'sync' && s.persistedUIReady
+            ? {
+                rightSidebarTab: s.rightSidebarTab,
+                rightSidebarExplorerView: s.rightSidebarExplorerView
+              }
+            : normalizeRightSidebarRoute(ui.rightSidebarTab, ui.rightSidebarExplorerView)),
           groupBy: (ui.groupBy as UISlice['groupBy'] | 'parent') === 'parent' ? 'repo' : ui.groupBy,
           sortBy,
           // Why: main-process getUI() already normalized this (defaulting to 'manual'); read it through without migrating.
@@ -277,6 +286,15 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
         // Capture authoritative baseline before overlaying dirty/in-flight local fields or their diff vanishes (STA-5781). Nonnumeric width fallback may differ from main until the next drag.
         const nextWriteBaseline = capturePersistedUIWriteBaseline(hydrated)
         const previousBaseline = s.persistedUIWriteBaseline
+        // Preserve the prior baseline for window-local navigation too. Taking
+        // another window's route as our baseline would spuriously mark our
+        // unchanged tab dirty and echo it back to main on every width sync.
+        // A genuinely pending local tab edit still differs from its old
+        // baseline and can be persisted by the normal writer.
+        if (source === 'sync' && s.persistedUIReady && previousBaseline) {
+          nextWriteBaseline.rightSidebarTab = previousBaseline.rightSidebarTab
+          nextWriteBaseline.rightSidebarExplorerView = previousBaseline.rightSidebarExplorerView
+        }
         if (previousBaseline) {
           const pendingLocalEdits = diffPersistedUIWriteFields(
             capturePersistedUIWriteBaseline(s),

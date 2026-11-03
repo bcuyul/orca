@@ -1,0 +1,49 @@
+name: Adaptive Staged Safety
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [feat/adaptive-native-plan-bridge]
+    paths:
+      - '.github/workflows/adaptive-staged-safety-ci.yml'
+      - 'src/main/runtime/adaptive-delivery/**'
+      - 'src/main/runtime/orchestration/coordinator*'
+      - 'src/main/runtime/orchestration/adaptive-staged-task.ts'
+      - 'docs/project-hub/ADAPTIVE_STAGED_SAFETY_PR10.md'
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    name: Dispatch quarantine (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version-file: config/.bun-version
+          no-cache: true
+      - name: Lint
+        run: |
+          pnpm exec oxlint src/main/runtime/adaptive-delivery src/main/runtime/orchestration/coordinator.ts src/main/runtime/orchestration/coordinator-dag-convergence.ts src/main/runtime/orchestration/adaptive-staged-task.ts
+      - name: Test safety and Coordinator regression
+        run: |
+          pnpm exec vitest run --config config/vitest.config.ts src/main/runtime/adaptive-delivery src/main/runtime/orchestration/coordinator.test.ts src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts
+      - name: Typecheck
+        run: pnpm typecheck

@@ -1,0 +1,147 @@
+name: Clean Project Hub Integration
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, integration/project-hub-adaptive-clean]
+    paths:
+      - '.github/workflows/project-hub-clean-integration-ci.yml'
+      - 'src/main/project-hub/**'
+      - 'src/main/runtime/adaptive-delivery/**'
+      - 'src/main/runtime/orchestration/**'
+      - 'src/main/runtime/rpc/methods/agent-launch*'
+      - 'src/shared/project-hub*'
+      - 'src/shared/adaptive-delivery/**'
+      - 'src/renderer/src/components/right-sidebar/ProjectHub*'
+      - 'src/main/ipc/project-hub.ts'
+      - 'src/preload/api/project-hub*'
+      - 'skills/adaptive-*/**'
+      - 'docs/project-hub/**'
+      - 'tests/e2e/project-hub-native-smoke.spec.ts'
+      - 'tests/e2e/project-hub-pointer-smoke.spec.ts'
+      - 'src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts'
+      - 'src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts'
+      - 'src/renderer/src/components/right-sidebar/index.tsx'
+      - 'config/scripts/dev-fresh-profile.mjs'
+      - 'config/scripts/dev-fresh-pnpm-command*.mjs'
+
+permissions:
+  contents: read
+
+# Keep one active verification matrix per PR; obsolete pushes must not compete
+# for long Windows native-build runners or report stale results as current.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Native integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version-file: config/.bun-version
+          no-cache: true
+      - name: Reject HTML prototype from experimental PR 1
+        run: |
+          if test -e extensions/project-hub/panel.html || test -e extensions/project-hub/main.mjs; then
+            echo "Rejected: unverified experimental Project Hub HTML plugin"
+            exit 1
+          fi
+      - name: Verify cross-platform fresh-profile pnpm launcher
+        run: node --test config/scripts/dev-fresh-pnpm-command.test.mjs
+      - name: Oxlint native integration paths
+        run: |
+          pnpm exec oxlint \
+            src/main/project-hub \
+            src/main/runtime/adaptive-delivery \
+            src/shared/adaptive-delivery \
+            src/shared/project-hub*.ts \
+            src/main/runtime/orchestration/coordinator.ts \
+            src/main/runtime/orchestration/adaptive-staged-task.ts \
+            src/main/runtime/rpc/methods/agent-launch.ts \
+            src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
+            src/renderer/src/components/right-sidebar/ProjectHubDelegationRunner.tsx \
+            src/renderer/src/components/right-sidebar/ProjectHubPanel.tsx \
+            src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
+      - name: Run Project Hub, Adaptive and Coordinator regression tests
+        run: |
+          pnpm exec vitest run --config config/vitest.config.ts \
+            src/main/project-hub \
+            src/main/runtime/adaptive-delivery \
+            src/shared/adaptive-delivery \
+            src/shared/project-hub \
+            src/main/runtime/orchestration/coordinator.test.ts \
+            src/main/runtime/orchestration/coordinator-run-scope.test.ts \
+            src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts \
+            src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
+            src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
+      - name: Whole workspace typecheck
+        run: pnpm typecheck
+
+  # A passing typecheck is not proof the React panel boots in Electron.
+  # Existing E2E fixtures create an isolated userData profile and disposable Git repo.
+  project-hub-electron-smoke:
+    name: Project Hub Electron smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: node
+          node-version: '24'
+          cache-pnpm-store: 'false'
+      - name: Prepare Electron native runtime
+        run: pnpm run ensure:electron-runtime
+      - name: Exercise native Project Hub with isolated Playwright Electron
+        env:
+          CI: 'true'
+          ORCA_BACKGROUND_LAUNCH: '1'
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+          else
+            pnpm exec playwright test tests/e2e/project-hub-native-smoke.spec.ts tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+          fi
+      - name: Verify visible Electron mouse interactions on Ubuntu Xvfb
+        if: runner.os == 'Linux'
+        env:
+          CI: 'true'
+          ORCA_BACKGROUND_LAUNCH: '1'
+          ORCA_E2E_FORCE_HEADFUL: '1'
+        run: xvfb-run -a pnpm exec playwright test tests/e2e/project-hub-pointer-smoke.spec.ts --config tests/playwright.config.ts --project=electron-headless --workers=1
+      - name: Attach Electron Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-hub-electron-${{ matrix.os }}-failure
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

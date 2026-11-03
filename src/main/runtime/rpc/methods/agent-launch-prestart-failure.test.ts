@@ -3,6 +3,7 @@ import '../unused-default-rpc-methods.test-fixture'
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { closeTestJournalHostDatabase } from '../../../native-chat/agent-session-journal/journal-host-database-test-support'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computeAgentLaunchFingerprint } from '../../../../shared/agent-launch-operation'
@@ -76,6 +77,7 @@ describe('a launch whose terminal fails', () => {
 
   afterEach(async () => {
     setAgentLaunchRecordStore(null)
+    closeTestJournalHostDatabase(directory)
     await rm(directory, { recursive: true, force: true })
   })
 
