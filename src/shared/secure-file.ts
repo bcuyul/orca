@@ -45,6 +45,10 @@ let hardenedDirectoryPathsThisProcess = new SecurePathHardeningCache<true>(
   DEFAULT_HARDENING_CACHE_BOUNDS
 )
 
+// Directory DACL propagation is intentionally asynchronous. Preserve the in-flight
+// operations so test teardown cannot delete a path while the native addon is using it.
+const pendingWindowsDirectoryHardening = new Set<Promise<boolean>>()
+
 function hardenWindowsDirectoryOnce(dirPath: string): void {
   // Why the floor: read paths poll at ~2/s (#4901); retrying every failure there would storm.
   if (hardenedDirectoryPathsThisProcess.get(dirPath) || !mayAttemptHardening(dirPath)) {
@@ -53,12 +57,20 @@ function hardenWindowsDirectoryOnce(dirPath: string): void {
   // Cache before the ACL lands so concurrent writes don't restorm; a failure drops it, under the retry budget.
   hardenedDirectoryPathsThisProcess.set(dirPath, true)
   // Why async: a directory rewrite propagates to every descendant, ~2 s on a 29k-entry userData.
-  void restrictWindowsDirectory(dirPath).then((restricted) => {
+  const pending = restrictWindowsDirectory(dirPath).then((restricted) => {
     recordHardeningOutcome(dirPath, restricted)
     if (!restricted) {
       hardenedDirectoryPathsThisProcess.delete(dirPath)
     }
+    return restricted
   })
+  pendingWindowsDirectoryHardening.add(pending)
+  // Observe either outcome and release the registry. A rejection must not
+  // produce an unhandled promise while the secure path remains unverified.
+  void pending.then(
+    () => { pendingWindowsDirectoryHardening.delete(pending) },
+    () => { pendingWindowsDirectoryHardening.delete(pending) }
+  )
 }
 
 function hardenSecurePathOnce(targetPath: string, isDirectory: boolean): boolean {
@@ -237,6 +249,12 @@ function rememberHardenedPath(targetPath: string, isDirectory: boolean): void {
   } else {
     hardenedPathsThisProcess.delete(targetPath)
   }
+}
+
+/** Test-only teardown barrier: wait for pending native DACL operations before deleting temp roots. */
+export async function __awaitPendingWindowsDirectoryHardeningForTests(): Promise<boolean> {
+  const settled = await Promise.allSettled([...pendingWindowsDirectoryHardening])
+  return settled.every((result) => result.status === 'fulfilled' && result.value)
 }
 
 export function __resetSecureFileHardenedPathsForTests(

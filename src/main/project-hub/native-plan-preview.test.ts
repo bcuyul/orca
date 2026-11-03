@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ProjectHubStore } from './project-hub-store'
+import { __awaitPendingWindowsDirectoryHardeningForTests } from '../../shared/secure-file'
+import { restrictWindowsDirectory } from '../../shared/secure-path-windows-acl'
 import { buildNativePlanPreview } from './native-plan-preview'
 import { OrchestrationDb } from '../runtime/orchestration/db/orchestration-db'
 import { HostAdmissionLedger } from '../runtime/adaptive-delivery/host-admission-ledger'
@@ -26,7 +28,7 @@ const plan: HubPlanProposal = {
 const now = Date.parse('2026-11-03T10:15:00Z')
 
 describe('Project Hub → native DAG preview → host-only Run/Task lab', () => {
-  it('reads a saved proposal and decision, creates the same native DAG only after a host grant', () => {
+  it('reads a saved proposal and decision, creates the same native DAG only after a host grant', async () => {
     const root = mkdtempSync(join(tmpdir(), 'orca-preview-dag-'))
     const db = new OrchestrationDb(':memory:')
     try {
@@ -91,12 +93,23 @@ describe('Project Hub → native DAG preview → host-only Run/Task lab', () => 
       expect(materializer.materialize(request)).toEqual(receipt)
       expect(db.listRuns().runs.filter((run) => run.legacy === 0)).toHaveLength(1)
     } finally {
-      db.close()
-      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      try {
+        // ProjectHubStore writes restricted files synchronously but hardens the
+        // enclosing directory asynchronously. Deleting before that finishes
+        // produces a misleading Win32 ERROR_PATH_NOT_FOUND in the addon.
+        const hardened = await __awaitPendingWindowsDirectoryHardeningForTests()
+        expect(hardened).toBe(true)
+        if (process.platform === 'win32') {
+          expect(await restrictWindowsDirectory(join(root, 'project-hub', 'v1'))).toBe(true)
+        }
+      } finally {
+        db.close()
+        rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      }
     }
   })
 
-  it('rejects stale revision and invalid plan identity without side effects', () => {
+  it('rejects stale revision and invalid plan identity without side effects', async () => {
     const root = mkdtempSync(join(tmpdir(), 'orca-preview-invalid-'))
     try {
       const hub = new ProjectHubStore(root)
@@ -112,7 +125,15 @@ describe('Project Hub → native DAG preview → host-only Run/Task lab', () => 
       expect(() => buildNativePlanPreview(hub.read(projectId), 'bad/id', proposed.revision))
         .toThrow(/Invalid plan/)
     } finally {
-      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      try {
+        const hardened = await __awaitPendingWindowsDirectoryHardeningForTests()
+        expect(hardened).toBe(true)
+        if (process.platform === 'win32') {
+          expect(await restrictWindowsDirectory(join(root, 'project-hub', 'v1'))).toBe(true)
+        }
+      } finally {
+        rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+      }
     }
   })
 })
