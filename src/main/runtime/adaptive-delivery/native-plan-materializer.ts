@@ -3,6 +3,7 @@ import type { HubDocument } from '../../../shared/project-hub-types'
 import { buildNativePlanPreview } from '../../project-hub/native-plan-preview'
 import { assertAdaptiveRequest, type AdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
 import type { HostAdmissionLedger } from './host-admission-ledger'
+import { inspectNativeMaterialization } from './native-materialization-inspection'
 
 export type MaterializeRequest = {
   admission: AdaptiveRequest
@@ -53,19 +54,12 @@ export class NativePlanMaterializer {
     }
     const reservation = this.ledger.reserve(request,input.nowMs)
     if (reservation.disposition === 'completed') {
-      if (!reservation.receipt) { throw new Error('Missing completed receipt') }
-      const result = JSON.parse(reservation.receipt) as NativeMaterialization
-      if (!result || result.planId !== preview.planId || !this.db.getRun(result.runId) ||
-          Object.entries(result.tasks).length !== preview.tasks.length ||
-          !Object.values(result.tasks).every(id => this.db.getTask(id)?.run_id === result.runId) ||
-          !result.provenance || result.provenance.projectId !== request.projectId ||
-          result.provenance.repoId !== request.repoId ||
-          result.provenance.hostId !== request.hostId ||
-          result.provenance.baseSha !== request.baseSha ||
-          result.provenance.planSha !== request.planSha) {
+      if (!reservation.receipt ||
+          inspectNativeMaterialization(this.db, this.ledger, request).disposition !==
+            'completed_verified') {
         throw new Error('Completed receipt stale or corrupt; reconcile')
       }
-      return result
+      return JSON.parse(reservation.receipt) as NativeMaterialization
     }
     if (reservation.disposition !== 'new') {
       throw new Error('Uncertain or pending materialization; reconcile before retry')
