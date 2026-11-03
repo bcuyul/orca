@@ -88,3 +88,67 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
     name: /Iniciar y enviar instrucciones/
   })).toBeDisabled()
 })
+
+test('Project Hub remains selected during native window and sidebar resize @project-hub-resize', async ({
+  electronApp,
+  orcaPage
+}) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) {
+      throw new Error('The isolated Electron renderer store is unavailable')
+    }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  const hub = orcaPage.getByText('PROJECT HUB · NATIVO')
+  await expect(hub).toBeVisible()
+
+  const assertHubSelected = async (where: string): Promise<void> => {
+    await expect(hub, where).toBeVisible()
+    const route = await orcaPage.evaluate(() => {
+      const state = window.__store?.getState()
+      return {
+        requested: state?.rightSidebarTab,
+        effective: state?.rightSidebarEffectiveTab,
+        open: state?.rightSidebarOpen
+      }
+    })
+    expect(route, where).toEqual({
+      requested: 'project-hub',
+      effective: 'project-hub',
+      open: true
+    })
+  }
+
+  for (const [width, height] of [[1120, 760], [1440, 900], [980, 720]] as const) {
+    await electronApp.evaluate(({ BrowserWindow }, size) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+      if (!window) {
+        throw new Error('Missing Electron desktop window')
+      }
+      window.setSize(size[0], size[1])
+    }, [width, height])
+    await assertHubSelected(`Electron window ${width}x${height}`)
+  }
+
+  // Reproduce the user's manual operation: drag the LEFT resize edge of the
+  // right sidebar, then move it back. Neither operation chooses a new tab.
+  const handle = orcaPage.getByTestId('right-sidebar-resize-handle')
+  await expect(handle).toBeVisible()
+  for (const delta of [-100, 100]) {
+    const bounds = await handle.boundingBox()
+    if (!bounds) {
+      throw new Error('Right sidebar resize handle has no screen bounds')
+    }
+    const x = bounds.x + bounds.width / 2
+    const y = bounds.y + Math.min(110, bounds.height / 2)
+    await orcaPage.mouse.move(x, y)
+    await orcaPage.mouse.down()
+    await orcaPage.mouse.move(x + delta, y, { steps: 8 })
+    await orcaPage.mouse.up()
+    await assertHubSelected(`right sidebar drag delta ${delta}`)
+  }
+})
