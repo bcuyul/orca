@@ -212,4 +212,13 @@ test('Project Hub resize release over Explorer never activates a different tab @
     }
   })
   expect(route).toEqual({ selected: 'project-hub', effective: 'project-hub' })
+
+  // A genuine subsequent Explorer click must still navigate normally.
+  await explorer.click()
+  await expect(hub).toHaveCount(0)
+  await expect.poll(async () => orcaPage.evaluate(() =>
+    window.__store?.getState().rightSidebarTab
+  )).toBe('explorer')
+  await orcaPage.getByRole('button', { name: 'Project Hub', exact: true }).click()
+  await expect(hub).toBeVisible()
 })
