@@ -201,10 +201,20 @@ export function useSidebarResize<T extends HTMLElement>({
         frameRef.current = null
       }
 
+      // A drag completion commits its width to Zustand, changing stopResize's
+      // identity and re-subscribing these listeners *before the browser's click*.
+      // Never dismantle the post-mouseup shield on an ordinary re-subscription.
+      // Actual unmount is cleaned up by the dedicated effect below.
+    }
+  }, [handleMouseMove, stopResize])
+
+  useEffect(
+    () => () => {
       isResizingRef.current = false
       resetDocumentStyles()
-    }
-  }, [handleMouseMove, resetDocumentStyles, stopResize])
+    },
+    [resetDocumentStyles]
+  )
 
   const onResizeStart = useCallback(
     (event: React.MouseEvent) => {
