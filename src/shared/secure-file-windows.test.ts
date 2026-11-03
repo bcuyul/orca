@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runProcess, runProcessSync } from '@orca/process-host'
 import {
+  __awaitPendingWindowsDirectoryHardeningForTests,
   __getSecureFileHardeningCacheStateForTests,
   __resetSecureFileHardenedPathsForTests,
   hardenExistingSecureFile,
@@ -165,6 +166,26 @@ describe('Windows secure files through the native ACL addon', () => {
   })
 
   describe('directory relock', () => {
+    it('waits for a held native directory ACL operation before test cleanup', async () => {
+      fake.holdAsync = true
+      const dir = tempDir()
+      expect(writeSecureFile(join(dir, 'secret.json'), 'contents')).toBe(true)
+      await settle()
+
+      let finished = false
+      const waiting = __awaitPendingWindowsDirectoryHardeningForTests().then((ok) => {
+        expect(ok).toBe(true)
+        finished = true
+      })
+      await settle()
+      expect(finished).toBe(false)
+      expect(fake.callsFor('setAsync', dir)).toHaveLength(1)
+
+      fake.releaseAsync()
+      await waiting
+      expect(finished).toBe(true)
+    })
+
     it('relocks the parent once, on the thread pool, across many writes', async () => {
       const dir = tempDir()
       for (let i = 0; i < 5; i++) {
