@@ -33,7 +33,7 @@ export function inspectNativeMaterialization(
   assertAdaptiveRequest(request)
   const entry = ledger.getReservation(request.requestId)
   const state = entry?.state ?? 'absent'
-  const initial = {
+  const initial: Omit<NativeMaterializationInspection, 'evidence' | 'disposition'> = {
     requestId: request.requestId, state, runId: null,
     recordedTaskCount: 0, unrecordedNativeTaskCount: 0, dispatchCount: 0,
     safeToRetry: false as const
