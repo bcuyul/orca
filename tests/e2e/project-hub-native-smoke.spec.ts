@@ -219,3 +219,74 @@ test('Atlas DAG approval → trusted IPC preview without a CLI launch @project-h
     'data-store', 'forge-build', 'qa-check'
   ])
 })
+
+
+test('Atlas-approved Forge evidence is linked to QA without any agent execution @project-hub-handoff', async ({ orcaPage }) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state=window.__store?.getState()
+    if (!state) { throw new Error('Isolated renderer is missing') }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button',{name:'Inteligencia',exact:true}).evaluate(el=>{
+    (el as HTMLButtonElement).click()
+  })
+  const proposal={
+    objective:'Trace the Forge handoff into QA',
+    rationale:'Keep external artifact IDs and human decisions linked',
+    tasks:[{
+      id:'forge-example',title:'Build the traceable example',role:'forge',
+      dependsOn:[],acceptance:'Artifact is reviewed by independent QA'
+    }]
+  }
+  await orcaPage.getByRole('textbox',{name:'Propuesta JSON de Atlas (no ejecutable)'})
+    .fill(JSON.stringify(proposal))
+  await orcaPage.getByRole('button',{name:'Validar DAG y guardar propuesta'}).evaluate(el=>{
+    (el as HTMLButtonElement).click()
+  })
+  await expect(orcaPage.getByText('Propuesta DAG guardada; aún NO es un Run de Orca.'))
+    .toBeVisible()
+  await orcaPage.getByRole('textbox',{name:/Justificación de la decisión/})
+    .fill('Reviewed this one-task plan and its acceptance criteria')
+  await orcaPage.getByRole('checkbox',{name:/Confirmo que revisé esta propuesta/}).check()
+  await orcaPage.getByRole('button',{name:'Aprobar plan'}).evaluate(el=>{
+    (el as HTMLButtonElement).click()
+  })
+  await expect(orcaPage.getByText('Aprobado manualmente',{exact:false})).toBeVisible()
+
+  await orcaPage.getByRole('combobox',{name:'Plan para entrega Forge'}).selectOption({index:1})
+  await orcaPage.getByRole('combobox',{name:'Tarea para entrega Forge'}).selectOption('forge-example')
+  await expect(orcaPage.getByText('Entrega externa pendiente')).toBeVisible()
+  await orcaPage.getByRole('textbox',{name:'SHA base de Forge'}).fill('a'.repeat(40))
+  await orcaPage.getByRole('textbox',{name:'SHA de entrega Forge'}).fill('b'.repeat(40))
+  await orcaPage.getByRole('textbox',{name:'Evidencia de Forge'}).fill('diff:forge-example')
+  await orcaPage.getByRole('textbox',{name:'Pruebas de Forge'}).fill('Vitest executed externally, not verified by Orca')
+  await orcaPage.getByRole('button',{name:'Registrar entrega externa (declaración)'}).evaluate(el=>{
+    (el as HTMLButtonElement).click()
+  })
+  await expect(orcaPage.getByText('Entrega externa declarada; falta comprobar diff y CI mediante QA.')).toBeVisible()
+  await expect(orcaPage.getByText('Pendiente de QA independiente')).toBeVisible()
+  await orcaPage.getByRole('textbox',{name:'Evidencia de QA'}).fill('Manual review of diff only')
+  await orcaPage.getByRole('textbox',{name:'Hallazgos QA'}).fill('Reviewed independent diff; CI result not authenticated')
+  await orcaPage.getByRole('combobox',{name:'Resultado QA de entrega'}).selectOption('approved')
+  await orcaPage.getByRole('button',{name:'Registrar QA vinculado (declaración)'}).evaluate(el=>{
+    (el as HTMLButtonElement).click()
+  })
+  await expect(orcaPage.getByText('QA registrado como declaración humana para el commit indicado, no como CI verificado.'))
+    .toBeVisible()
+  await expect(orcaPage.getByText('QA aprobó (declarado; CI no verificado)',{exact:false}))
+    .toBeVisible()
+  await expect(orcaPage.getByText('Ejecución: bloqueada. Ningún estado concede un grant.')).toBeVisible()
+
+  await orcaPage.evaluate(() => window.__store?.getState().setRightSidebarTab('explorer'))
+  await orcaPage.evaluate(() => window.__store?.getState().setRightSidebarTab('project-hub'))
+  await orcaPage.getByRole('button',{name:'Inteligencia',exact:true}).evaluate(el=>{
+    (el as HTMLButtonElement).click()
+  })
+  await orcaPage.getByRole('combobox',{name:'Plan para entrega Forge'}).selectOption({index:1})
+  await expect(orcaPage.getByText('QA aprobó (declarado; CI no verificado)',{exact:false}))
+    .toBeVisible()
+})
