@@ -3,7 +3,7 @@ name: Clean Project Hub Integration
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
+    branches: [main, integration/project-hub-adaptive-clean]
     paths:
       - '.github/workflows/project-hub-clean-integration-ci.yml'
       - 'src/main/project-hub/**'
