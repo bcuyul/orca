@@ -11,6 +11,7 @@ import {
   parseAtlasPlanJson, renderAtlasPlanningPrompt, renderQaReviewPrompt
 } from '../../../../shared/project-hub-intelligence-prompts'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 
 type Props = { doc: HubDocument; busy: boolean; onSave: (next: HubDocument) => Promise<boolean> }
 const field = 'w-full rounded border border-border bg-background p-2 text-xs'
@@ -240,6 +241,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
       <button className={action} type="button" disabled={busy||!taskForBlocker||observation.trim().length<5||recommendation.trim().length<5}
         onClick={() => void reportBlocker()}>Registrar bloqueo (sin reintento)</button>
     </section>
+    <ProjectHubHandoffPanel doc={doc} busy={busy} onSave={onSave}/>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Forge · memoria con evidencias</h4>
       <p>{approvedHubMemories(state).length} memorias aprobadas · {state.memories.length} propuestas</p>
@@ -264,7 +266,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave }: Props
       })}
     </section>
     <section className="space-y-3 rounded-lg border border-border bg-card p-3">
-      <h4 className="font-semibold">QA · revisión guiada</h4>
+      <h4 className="font-semibold">QA · notas manuales heredadas</h4>
       <p className="text-muted-foreground">Registro manual. No existe todavía un revisor automático ni consulta verificada de CI.</p>
       <label className="block">1. ¿Qué plan revisaremos?
         <select aria-label="Plan para QA" className={field} disabled={busy} value={qaPlan}
