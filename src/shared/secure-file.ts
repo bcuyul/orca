@@ -264,7 +264,7 @@ function rememberHardenedPath(targetPath: string, isDirectory: boolean): void {
 
 /** Test-only teardown barrier: wait for pending native DACL operations before deleting temp roots. */
 export async function __awaitPendingWindowsDirectoryHardeningForTests(): Promise<boolean> {
-  const settled = await Promise.allSettled([...pendingWindowsDirectoryHardening])
+  const settled = await Promise.allSettled(pendingWindowsDirectoryHardening)
   return settled.every((result) => result.status === 'fulfilled' && result.value)
 }
 

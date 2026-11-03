@@ -2,12 +2,14 @@
 # This registered workflow path supports workflow_dispatch on default branch.
 # It is repurposed only on ci/project-hub-pr16-validation-20261103 so the
 # native preview CI matrix can be run manually without changing product branches.
-# Source snapshot: b21c09e8c7511e91a3b82631767ffcf76503d953
+# Source snapshot: a4af3956d2f7befaebc205a2df9928a6959f4ebd
 name: Project Hub PR16 isolated validation
 run-name: "PR16 isolated validation (${{ github.ref_name }})"
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ci/project-hub-pr16-validation-20261103]
 
 permissions:
   contents: read
