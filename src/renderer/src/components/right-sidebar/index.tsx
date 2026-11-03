@@ -170,6 +170,7 @@ function RightSidebarInner(): React.JSX.Element {
         {panelContent}
 
         <div
+          data-testid="right-sidebar-resize-handle"
           className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-ring/20 active:bg-ring/30 transition-colors z-10"
           onMouseDown={onResizeStart}
         />
