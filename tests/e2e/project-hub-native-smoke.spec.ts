@@ -171,3 +171,51 @@ test('Project Hub remains selected during native window and sidebar resize @proj
     await assertHubSelected(`right sidebar drag delta ${delta}`)
   }
 })
+
+test('Atlas DAG approval → trusted IPC preview without a CLI launch @project-hub-plan-preview', async ({ orcaPage }) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) { throw new Error('Missing isolated Electron store') }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Inteligencia', exact: true }).evaluate((element) => {
+    (element as HTMLButtonElement).click()
+  })
+  const proposal = {
+    objective: 'Deliver an isolated sample feature',
+    rationale: 'Verify the DAG from UI to native projection',
+    tasks: [
+      { id: 'qa-check', title: 'Verify feature', role: 'qa',
+        dependsOn: ['forge-build'], acceptance: 'All tests pass' },
+      { id: 'forge-build', title: 'Build feature', role: 'forge',
+        dependsOn: ['data-store'], acceptance: 'Feature works' },
+      { id: 'data-store', title: 'Persist feature', role: 'data',
+        dependsOn: [], acceptance: 'Records persist' }
+    ]
+  }
+  await orcaPage.getByRole('textbox', { name: 'Propuesta JSON de Atlas (no ejecutable)' })
+    .fill(JSON.stringify(proposal))
+  await orcaPage.getByRole('button', { name: 'Validar DAG y guardar propuesta' })
+    .evaluate((element) => { (element as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText('Propuesta DAG guardada; aún NO es un Run de Orca.'))
+    .toBeVisible()
+  await orcaPage.getByRole('textbox', { name: /Justificación de la decisión/ })
+    .fill('Reviewed task dependencies and acceptance criteria')
+  await orcaPage.getByRole('checkbox', { name: /Confirmo que revisé esta propuesta/ }).check()
+  await orcaPage.getByRole('button', { name: 'Aprobar plan' })
+    .evaluate((element) => { (element as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText('Aprobado manualmente', { exact: false })).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Inspeccionar conversión nativa (sin ejecutar)' })
+    .evaluate((element) => { (element as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText('Vista previa del Run de Orca')).toBeVisible()
+  await expect(orcaPage.getByText('Solo lectura: no se creó Run, Task ni Dispatch.', { exact: false }))
+    .toBeVisible()
+  const order = await orcaPage.locator('div[role="status"] ol li').allTextContents()
+  expect(order.map((line) => line.split(' · ')[0])).toEqual([
+    'data-store', 'forge-build', 'qa-check'
+  ])
+})

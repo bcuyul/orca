@@ -1,9 +1,7 @@
-import { createHash } from 'node:crypto'
 import type { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import type { HubDocument } from '../../../shared/project-hub-types'
-import { isHubDocument } from '../../../shared/project-hub-types'
-import { isHubPlanProposal, type HubPlanProposal } from '../../../shared/project-hub-intelligence'
-import type { AdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
+import { buildNativePlanPreview } from '../../project-hub/native-plan-preview'
+import { assertAdaptiveRequest, type AdaptiveRequest } from '../../../shared/adaptive-delivery/admission-contracts'
 import type { HostAdmissionLedger } from './host-admission-ledger'
 
 export type MaterializeRequest = {
@@ -38,22 +36,18 @@ export class NativePlanMaterializer {
 
   materialize(input: MaterializeRequest): NativeMaterialization {
     const request = input.admission
+    assertAdaptiveRequest(request)
     if (request.operation !== 'materialize_run') { throw new Error('materialize_run required') }
     if (!Number.isSafeInteger(input.expectedHubRevision) || input.expectedHubRevision < 0) {
       throw new Error('Invalid Project Hub revision')
     }
     const doc = this.projects.read(request.projectId)
-    if (!isHubDocument(doc) || doc.projectId !== request.projectId ||
-        doc.revision !== input.expectedHubRevision) { throw new Error('Project Hub revision/identity mismatch') }
-    const plan = doc.intelligence?.plans.find(x => x.id === request.planId)
-    if (!plan || !isHubPlanProposal(plan)) { throw new Error('Plan missing or invalid') }
-    const approved = doc.intelligence?.decisions.some(x =>
-      x.subject === 'plan' && x.subjectId === plan.id && x.verdict === 'accepted')
-    if (!approved) { throw new Error('Plan not human-approved') }
-    const planSha = createHash('sha256').update(JSON.stringify(plan)).digest('hex')
-    if (planSha !== request.planSha) { throw new Error('Plan SHA does not match proposal') }
+    if (doc.projectId !== request.projectId) { throw new Error('Project Hub revision/identity mismatch') }
+    const preview = buildNativePlanPreview(doc, request.planId, input.expectedHubRevision)
+    if (preview.approval !== 'accepted') { throw new Error('Plan not human-approved') }
+    if (preview.planSha !== request.planSha) { throw new Error('Plan SHA does not match proposal') }
     const submittedIds = [...request.taskIds].sort()
-    const planIds = plan.tasks.map(x => x.id).sort()
+    const planIds = preview.tasks.map((task) => task.id).sort()
     if (JSON.stringify(submittedIds) !== JSON.stringify(planIds)) {
       throw new Error('Complete plan task set required')
     }
@@ -61,8 +55,8 @@ export class NativePlanMaterializer {
     if (reservation.disposition === 'completed') {
       if (!reservation.receipt) { throw new Error('Missing completed receipt') }
       const result = JSON.parse(reservation.receipt) as NativeMaterialization
-      if (!result || result.planId !== plan.id || !this.db.getRun(result.runId) ||
-          Object.entries(result.tasks).length !== plan.tasks.length ||
+      if (!result || result.planId !== preview.planId || !this.db.getRun(result.runId) ||
+          Object.entries(result.tasks).length !== preview.tasks.length ||
           !Object.values(result.tasks).every(id => this.db.getTask(id)?.run_id === result.runId) ||
           !result.provenance || result.provenance.projectId !== request.projectId ||
           result.provenance.repoId !== request.repoId ||
@@ -81,19 +75,19 @@ export class NativePlanMaterializer {
     try {
       started = true
       const run = this.db.createRun({
-        objective: plan.objective,
+        objective: preview.objective,
         coordinatorHandle: null,
         coordinatorPaneKey: null
       })
       const tasks: Record<string,string> = {}
       this.ledger.checkpoint(request.requestId, JSON.stringify({ stage:'creating',runId:run.id,tasks }))
-      for (const task of topologicalTasks(plan)) {
+      for (const task of preview.tasks) {
         const native = this.db.createTask({
           runId:run.id,
           taskTitle:task.title,
           displayName:task.title,
           // Stored as untrusted task data, not an agent-turn authorization.
-          spec:JSON.stringify({source:'adaptive-untrusted-plan',objective:plan.objective,
+          spec:JSON.stringify({source:'adaptive-untrusted-plan',objective:preview.objective,
             role:task.role, title:task.title, acceptance:task.acceptance}),
           deps:task.dependsOn.map(id => tasks[id])
         })
@@ -101,7 +95,7 @@ export class NativePlanMaterializer {
         this.ledger.checkpoint(request.requestId, JSON.stringify({ stage:'creating',runId:run.id,tasks }))
       }
       const result: NativeMaterialization = {
-        runId: run.id, planId: plan.id, tasks, dispatched: false,
+        runId: run.id, planId: preview.planId, tasks, dispatched: false,
         provenance: {
           projectId: request.projectId, repoId: request.repoId, hostId: request.hostId,
           baseSha: request.baseSha, planSha: request.planSha
@@ -117,21 +111,4 @@ export class NativePlanMaterializer {
       throw error
     }
   }
-}
-
-/** Stable topological order; native createTask requires predecessors to exist. */
-function topologicalTasks(plan: HubPlanProposal): HubPlanProposal['tasks'] {
-  const byId = new Map(plan.tasks.map(task => [task.id,task]))
-  const done = new Set<string>()
-  const ordered: HubPlanProposal['tasks'] = []
-  const visit = (id:string): void => {
-    if (done.has(id)) { return }
-    const task = byId.get(id)
-    if (!task) { throw new Error('Unknown plan dependency') }
-    for (const dependency of [...task.dependsOn].sort()) { visit(dependency) }
-    ordered.push(task)
-    done.add(id)
-  }
-  for (const task of [...plan.tasks].sort((a,b)=>a.id.localeCompare(b.id,'en'))) { visit(task.id) }
-  return ordered
 }

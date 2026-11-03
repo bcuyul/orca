@@ -3,6 +3,7 @@ import type { Store } from '../persistence/loading-store/store'
 import { getProjectIdentityKey } from '../../shared/project-host-setup-projection'
 import { isHubDocument } from '../../shared/project-hub-types'
 import { ProjectHubStore } from '../project-hub/project-hub-store'
+import { buildNativePlanPreview } from '../project-hub/native-plan-preview'
 
 let trustedWindowId: number | null = null
 
@@ -26,5 +27,17 @@ export function registerProjectHubHandlers(store: Store): void {
     const id=authorize(event.sender.id,data.projectId)
     if(!isHubDocument(data.document)) throw new Error('Invalid document')
     return db.save(id,data.document,data.expectedRevision as number)
+  })
+  // Read-only host projection; no grant, Run, Task, Dispatch or CLI creation.
+  ipcMain.handle('projectHub:previewNativePlan', (event, args: unknown) => {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      throw new Error('Invalid preview request')
+    }
+    const data = args as Record<string, unknown>
+    const projectId = authorize(event.sender.id, data.projectId)
+    if (typeof data.planId !== 'string' || !Number.isSafeInteger(data.expectedRevision)) {
+      throw new Error('Invalid preview arguments')
+    }
+    return buildNativePlanPreview(db.read(projectId), data.planId, data.expectedRevision as number)
   })
 }

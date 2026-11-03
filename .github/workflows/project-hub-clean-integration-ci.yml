@@ -1,6 +1,12 @@
 name: Clean Project Hub Integration
 
 on:
+  # Test the stacked branch even when GitHub does not schedule PR checks for a non-default base.
+  push:
+    # A user-authenticated empty commit can explicitly trigger CI for this
+    # stacked Draft PR even when connector-authored commits produce no runs.
+    # Restrict by branch; do not add a paths filter (empty commits have no paths).
+    branches: [feat/project-hub-native-plan-preview]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, integration/project-hub-adaptive-clean]
@@ -12,6 +18,8 @@ on:
       - 'src/main/runtime/rpc/methods/agent-launch*'
       - 'src/shared/project-hub*'
       - 'src/shared/adaptive-delivery/**'
+      - 'src/shared/secure-file.ts'
+      - 'src/shared/secure-file-windows.test.ts'
       - 'src/renderer/src/components/right-sidebar/ProjectHub*'
       - 'src/main/ipc/project-hub.ts'
       - 'src/preload/api/project-hub*'
@@ -74,6 +82,8 @@ jobs:
             src/main/runtime/adaptive-delivery \
             src/shared/adaptive-delivery \
             src/shared/project-hub*.ts \
+            src/shared/secure-file.ts \
+            src/shared/secure-file-windows.test.ts \
             src/main/runtime/orchestration/coordinator.ts \
             src/main/runtime/orchestration/adaptive-staged-task.ts \
             src/main/runtime/rpc/methods/agent-launch.ts \
@@ -92,7 +102,9 @@ jobs:
             src/main/runtime/orchestration/coordinator-run-scope.test.ts \
             src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts \
             src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
-            src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
+            src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts \
+            src/shared/secure-file.test.ts \
+            src/shared/secure-file-windows.test.ts
       - name: Whole workspace typecheck
         run: pnpm typecheck
 
