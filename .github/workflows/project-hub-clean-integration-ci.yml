@@ -92,7 +92,7 @@ jobs:
             src/main/runtime/orchestration/coordinator-run-scope.test.ts \
             src/main/runtime/orchestration/coordinator-terminal-census-unavailable.test.ts \
             src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
-            src/renderer/src/hooks/useSidebarResize.test.tsx
+            src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
       - name: Whole workspace typecheck
         run: pnpm typecheck
 
