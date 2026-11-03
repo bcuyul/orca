@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { OrchestrationDb } from '../orchestration/db/orchestration-db'
 import { HostAdmissionLedger } from './host-admission-ledger'
 import { NativePlanMaterializer } from './native-plan-materializer'
+import { inspectNativeMaterialization } from './native-materialization-inspection'
 import { emptyProjectHub, type HubDocument } from '../../../shared/project-hub-types'
 import { emptyHubIntelligence, type HubPlanProposal } from '../../../shared/project-hub-intelligence'
 import type { AdaptiveRequest, AdaptiveScope } from '../../../shared/adaptive-delivery/admission-contracts'
@@ -97,4 +98,85 @@ describe('native plan materializer: real Run/Task rows, no workers',()=>{
     expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})).toThrow(/unapproved_scope/)
     expect(db.listRuns().runs.filter(run => run.legacy === 0)).toHaveLength(0)
   }))
+  it('inspects a completed Run/Task receipt without starting workers or writing data',()=>harness(({db,ledger,bridge})=>{
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'absent',evidence:'none',disposition:'not_found',safeToRetry:false
+    })
+    ledger.recordHostApproval('scope-1',scope)
+    const receipt=bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'completed',evidence:'matched',disposition:'completed_verified',
+      runId:receipt.runId,recordedTaskCount:3,unrecordedNativeTaskCount:0,
+      dispatchCount:0,safeToRetry:false
+    })
+    expect(db.listRuns().runs.filter(run=>run.legacy===0)).toHaveLength(1)
+    expect(db.db.prepare('SELECT COUNT(*) AS n FROM coordinator_runs').get()).toMatchObject({n:0})
+  }))
+  it('keeps reservations and unknown partial writes under manual-only reconciliation',()=>harness(({db,ledger,bridge})=>{
+    ledger.recordHostApproval('scope-1',scope)
+    ledger.reserve(admission,clock)
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'reserved',evidence:'missing',disposition:'manual_reconciliation',safeToRetry:false
+    })
+    expect(()=>inspectNativeMaterialization(db,ledger,{...admission,taskIds:['task-a']}))
+      .toThrow(/request_mismatch/)
+    // A real restart can encounter a reserved checkpoint without the final receipt.
+    ledger.checkpoint(admission.requestId,JSON.stringify({stage:'creating',runId:'missing-run',tasks:{}}))
+    ledger.markUnknown(admission.requestId)
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'unknown',evidence:'divergent',disposition:'manual_reconciliation',
+      runId:'missing-run',safeToRetry:false
+    })
+    expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock}))
+      .toThrow(/reconcile/)
+    expect(db.listRuns().runs.filter(run=>run.legacy===0)).toHaveLength(0)
+  }))
+  it('never auto-retries a real interrupted native write even when checkpoint rows match',()=>harness(({db,ledger,bridge})=>{
+    ledger.recordHostApproval('scope-1',scope)
+    vi.spyOn(db,'createTask').mockImplementationOnce(()=>{throw new Error('simulated interrupted task')})
+    expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock}))
+      .toThrow(/simulated interrupted task/)
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'unknown',evidence:'matched',disposition:'manual_reconciliation',
+      recordedTaskCount:0,safeToRetry:false
+    })
+    expect(db.listRuns().runs.filter(run=>run.legacy===0)).toHaveLength(1)
+  }))
+  it('detects a forged duplicate native-task mapping and refuses idempotent replay',()=>harness(({db,ledger,bridge})=>{
+    ledger.recordHostApproval('scope-1',scope)
+    const result=bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})
+    const tampered={...result,tasks:{...result.tasks,'task-b':result.tasks['task-a']}}
+    db.db.prepare('UPDATE adaptive_admissions SET receipt=? WHERE request_id=?')
+      .run(JSON.stringify(tampered),admission.requestId)
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'completed',evidence:'malformed',disposition:'manual_reconciliation'
+    })
+    expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock}))
+      .toThrow(/Completed receipt stale or corrupt/)
+    expect(db.listRuns().runs.filter(run=>run.legacy===0)).toHaveLength(1)
+  }))
+  it('detects uncheckpointed native Tasks even if receipt says completed',()=>harness(({db,ledger,bridge})=>{
+    ledger.recordHostApproval('scope-1',scope)
+    const result=bridge.materialize({admission,expectedHubRevision:2,nowMs:clock})
+    db.createTask({runId:result.runId,taskTitle:'Unexpected native task',
+      displayName:'Unexpected native task',spec:'manual inspection fixture',deps:[]})
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'completed',evidence:'divergent',unrecordedNativeTaskCount:1,
+      disposition:'manual_reconciliation',safeToRetry:false
+    })
+    expect(()=>bridge.materialize({admission,expectedHubRevision:2,nowMs:clock}))
+      .toThrow(/Completed receipt stale or corrupt/)
+  }))
+  it('treats corrupted checkpoint JSON as untrusted evidence, without writes',()=>harness(({db,ledger})=>{
+    ledger.recordHostApproval('scope-1',scope)
+    ledger.reserve(admission,clock)
+    ledger.checkpoint(admission.requestId,'{invalid-json')
+    ledger.markUnknown(admission.requestId)
+    expect(inspectNativeMaterialization(db,ledger,admission)).toMatchObject({
+      state:'unknown',evidence:'malformed',disposition:'manual_reconciliation',
+      safeToRetry:false
+    })
+    expect(db.listRuns().runs.filter(run=>run.legacy===0)).toHaveLength(0)
+  }))
+
 })
