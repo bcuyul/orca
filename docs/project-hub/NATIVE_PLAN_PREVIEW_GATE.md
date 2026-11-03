@@ -19,14 +19,14 @@ not authenticated host execution approval. A worktree is **not** an OS sandbox.
 
 ## Acceptance and verification matrix
 
-| Boundary | Evidence required |
-| --- | --- |
-| JSON → plan | Existing proposal parser and append-only ProjectHubStore tests |
-| Persisted plan → decision | CAS/revision checks, explicit checkbox and justification |
-| UI → host IPC preview | E2E isolated Electron test, stale revision refusal, project authorization |
-| DAG → native Runs/Tasks (lab only) | Real SQLite test, dependency IDs, idempotent replay |
-| Run/Task → Dispatch | Must remain blocked; verify zero Dispatch and coordinator_runs |
-| Actual CLI, independent QA, deployment | Out of scope; never claim success |
+| Boundary                               | Evidence required                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| JSON → plan                            | Existing proposal parser and append-only ProjectHubStore tests            |
+| Persisted plan → decision              | CAS/revision checks, explicit checkbox and justification                  |
+| UI → host IPC preview                  | E2E isolated Electron test, stale revision refusal, project authorization |
+| DAG → native Runs/Tasks (lab only)     | Real SQLite test, dependency IDs, idempotent replay                       |
+| Run/Task → Dispatch                    | Must remain blocked; verify zero Dispatch and coordinator_runs            |
+| Actual CLI, independent QA, deployment | Out of scope; never claim success                                         |
 
 Validation uses `src/main/project-hub/native-plan-preview.test.ts`, the existing
 native-plan-materializer tests and `tests/e2e/project-hub-native-smoke.spec.ts`.
@@ -44,3 +44,11 @@ flow with durable reconciliation and real Coordinator ownership of the created t
 Only later consider an independent human execution authorization and verified OS
 sandbox at the real CLI spawn boundary. Never auto-retry an unknown operation or
 alter the pre-existing PH-001 unknown/unconfirmed launch.
+
+## Windows verification - 2026-11-03
+
+- Vitest: 63 passed, 3 POSIX-only skipped.
+- Native TypeScript: exit code 0.
+- Electron E2E: 3 passed on the previous revision.
+- Windows ACL regression: 21 tests passed.
+- GitHub Actions: awaiting CI execution.
