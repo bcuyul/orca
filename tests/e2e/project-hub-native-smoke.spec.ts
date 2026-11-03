@@ -123,6 +123,21 @@ test('Project Hub remains selected during native window and sidebar resize @proj
     })
   }
 
+  // Reproduce the Windows desktop trace: an IPC UI sync publishes a stale
+  // Explorer tab after the user selected Project Hub (with the same route
+  // request ID). Resize itself is a separate check below.
+  const requestIdBeforeSync = await orcaPage.evaluate(async () => {
+    const state = window.__store?.getState()
+    if (!state?.persistedUIReady) {
+      throw new Error('Persisted UI hydration must finish before the sync test')
+    }
+    const stale = await window.api.ui.get()
+    state.hydratePersistedUI({ ...stale, rightSidebarTab: 'explorer' }, 'sync')
+    return state.rightSidebarRouteRequestId
+  })
+  await assertHubSelected('stale Explorer preference broadcast')
+  expect(requestIdBeforeSync).toBeGreaterThanOrEqual(0)
+
   for (const [width, height] of [[1120, 760], [1440, 900], [980, 720]] as const) {
     await electronApp.evaluate(({ BrowserWindow }, size) => {
       const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
