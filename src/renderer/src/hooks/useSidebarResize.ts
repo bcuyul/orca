@@ -75,37 +75,11 @@ export function useSidebarResize<T extends HTMLElement>({
     overlayRef.current = null
   }, [])
 
-  const resetDocumentStyles = useCallback(
-    (afterMouseUp = false) => {
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-
-      const overlay = overlayRef.current
-      if (!afterMouseUp || !overlay) {
-        removeDragOverlay()
-        return
-      }
-
-      // The browser synthesizes click *after* mouseup. Removing the resize
-      // overlay inside mouseup lets a click hit the Explorer activity button
-      // beneath the release point, even though the gesture began on the
-      // splitter. Retain the overlay through that click, then remove it.
-      overlay.addEventListener(
-        'click',
-        (event) => {
-          event.preventDefault()
-          event.stopPropagation()
-        },
-        { capture: true, once: true }
-      )
-      window.requestAnimationFrame(() => {
-        if (overlayRef.current === overlay) {
-          removeDragOverlay()
-        }
-      })
-    },
-    [removeDragOverlay]
-  )
+  const resetDocumentStyles = useCallback(() => {
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    removeDragOverlay()
+  }, [removeDragOverlay])
 
   const applyRenderedWidth = useCallback(
     (nextWidth: number) => {
@@ -130,7 +104,7 @@ export function useSidebarResize<T extends HTMLElement>({
     onDraftWidthChange?.(width)
   }, [applyRenderedWidth, onDraftWidthChange, width])
 
-  const stopResize = useCallback((event?: Event) => {
+  const stopResize = useCallback(() => {
     if (!isResizingRef.current) {
       return
     }
@@ -143,8 +117,7 @@ export function useSidebarResize<T extends HTMLElement>({
       frameRef.current = null
     }
 
-    // Only mouseup synthesizes a click. A window blur must clean up immediately.
-    resetDocumentStyles(event?.type === 'mouseup')
+    resetDocumentStyles()
 
     const finalWidth = draftWidthRef.current
     applyRenderedWidth(finalWidth)
@@ -201,20 +174,10 @@ export function useSidebarResize<T extends HTMLElement>({
         frameRef.current = null
       }
 
-      // A drag completion commits its width to Zustand, changing stopResize's
-      // identity and re-subscribing these listeners *before the browser's click*.
-      // Never dismantle the post-mouseup shield on an ordinary re-subscription.
-      // Actual unmount is cleaned up by the dedicated effect below.
-    }
-  }, [handleMouseMove, stopResize])
-
-  useEffect(
-    () => () => {
       isResizingRef.current = false
       resetDocumentStyles()
-    },
-    [resetDocumentStyles]
-  )
+    }
+  }, [handleMouseMove, resetDocumentStyles, stopResize])
 
   const onResizeStart = useCallback(
     (event: React.MouseEvent) => {
@@ -231,7 +194,6 @@ export function useSidebarResize<T extends HTMLElement>({
       // A viewport overlay captures mouseup over native plugins such as PDF embeds, preventing a stuck resize.
       if (!overlayRef.current) {
         const overlay = document.createElement('div')
-        overlay.setAttribute('data-sidebar-resize-overlay', 'true')
         overlay.style.position = 'fixed'
         overlay.style.inset = '0'
         overlay.style.zIndex = '2147483647'
