@@ -4,6 +4,7 @@ import { ProjectHubJiraImport, ProjectHubArchitecture, ProjectHubQuality, Projec
 import ProjectHubDelegationRunner from './ProjectHubDelegationRunner'
 import ProjectHubIntelligencePanel from './ProjectHubIntelligencePanel'
 import ProjectHubOverview from './ProjectHubOverview'
+import ProjectHubNativeAgentPreview from './ProjectHubNativeAgentPreview'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
@@ -148,9 +149,13 @@ export default function ProjectHubPanel(): React.JSX.Element {
         <button type="button" disabled={busy} onClick={()=>void save(shown)}
           className="rounded bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-40">Guardar blueprint</button>
       </div>}
-      {tab==='delegate'&&<ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
-        hostId={worktree?.hostId??''} branch={worktree?.branch??''}
-        onSave={save}/>} 
+      {tab==='delegate'&&<div className="space-y-3">
+        <ProjectHubNativeAgentPreview doc={shown} worktreeId={worktree?.id??''}
+          hostId={worktree?.hostId??''} gitHead={worktree?.head??''}/>
+        <ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
+          hostId={worktree?.hostId??''} branch={worktree?.branch??''}
+          onSave={save}/>
+      </div>}
       {tab==='intelligence'&&<ProjectHubIntelligencePanel doc={shown} busy={busy} onSave={save}/>}
       {tab==='architecture'&&<ProjectHubArchitecture doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
       {tab==='qa'&&<ProjectHubQuality doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
