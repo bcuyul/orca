@@ -37,9 +37,11 @@ Para cada tarea `i`, `x_i` binaria. Maximizar `sum_i u_i x_i`, sujeto a:
 - Tareas obligatorias `x_m=1`, prohibidas `x_p=0`.
 - Capacidad y disponibilidad según agente/host.
 
+Para un conjunto heurístico `H` y el óptimo del **mismo modelo** `O`, la brecha absoluta es `Delta = V(O) - V(H) >= 0`, y la relativa es `100 * Delta / V(O)` (si `V(O) = 0`, se define 0%). Una brecha 0% solo certifica coincidencia de objetivos para las hipótesis y datos introducidos, no calidad de esos datos ni programación de agentes.
+
 Un modelo más realista representa beneficios de conjuntos, escenarios de éxito y costos de reintento. Utilidad esperada simple `p_i * V_i` requiere hipótesis fuertes sobre éxito y aditividad; no representa por sí sola la probabilidad conjunta de completar un flujo.
 
-**El laboratorio adjunto** enumera subconjuntos válidos hasta 20 tareas para encontrar el óptimo exacto del **modelo simplificado de selección**. Complejidad temporal exponencial `O(2^n*n)`, inadmisible como solver general grande. No prueba optimalidad temporal con workers.
+**Project Hub (PR #26)** usa enumeración exhaustiva de los `2^n` subconjuntos solo para DAG de **1 a 12 tareas** (máximo 4096). Maximiza el valor MCDA aditivo con esfuerzo y precedencias estrictas, incluido el conjunto vacío; desambigua por menor esfuerzo y orden estable. Con 13–20 tareas conserva FIFO y la heurística valor/esfuerzo, pero omite el benchmark exacto. Complejidad `O(2^n*n)`: no es un solver general, no optimiza el calendario de workers ni acredita autorización o éxito operacional. Los valores, pesos y presupuestos son estimaciones humanas.
 
 ## 5. Programación con recursos (RCPSP)
 
