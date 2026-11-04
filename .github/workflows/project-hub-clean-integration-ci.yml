@@ -90,6 +90,7 @@ jobs:
             src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
             src/renderer/src/components/right-sidebar/ProjectHubDelegationRunner.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubHandoffPanel.tsx \
+            src/renderer/src/components/right-sidebar/ProjectHubNativeDraftPanel.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubTaskLinks.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubPanel.tsx \
             src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
@@ -112,7 +113,8 @@ jobs:
           pnpm exec vitest run --config config/vitest.config.ts \
             src/renderer/src/components/right-sidebar/ProjectHubMathPreview.test.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubTaskLinks.test.tsx \
-            src/renderer/src/components/right-sidebar/ProjectHubHandoffPanel.test.tsx
+            src/renderer/src/components/right-sidebar/ProjectHubHandoffPanel.test.tsx \
+            src/renderer/src/components/right-sidebar/ProjectHubNativeDraftPanel.test.tsx
       - name: Whole workspace typecheck
         run: pnpm typecheck
 

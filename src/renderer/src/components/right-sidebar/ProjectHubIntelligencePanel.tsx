@@ -1,4 +1,4 @@
-/** Human-gated intelligence records. No agent launch, git write or CI action here. */
+/** Human-gated records; native draft creation requires a separate explicit action. */
 import { useState } from 'react'
 import type { HubDocument } from '../../../../shared/project-hub-types'
 import type { NativePlanPreview } from '../../../../shared/native-plan-preview'
@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/project-hub-intelligence-prompts'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
+import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
 
 type Props = {
   doc: HubDocument
@@ -246,6 +247,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
       <button className={action} type="button" disabled={busy||!taskForBlocker||observation.trim().length<5||recommendation.trim().length<5}
         onClick={() => void reportBlocker()}>Registrar bloqueo (sin reintento)</button>
     </section>
+    <ProjectHubNativeDraftPanel doc={doc} gitContext={gitContext}/>
     <ProjectHubHandoffPanel doc={doc} busy={busy} onSave={onSave} gitContext={gitContext}/>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Forge · memoria con evidencias</h4>
