@@ -32,17 +32,21 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   const detecting = useAppStore(s => s.isDetectingLocalAgentsByContext)
   const refreshing = useAppStore(s => s.isRefreshingLocalAgentsByContext)
   const disabled = useAppStore(s => s.settings?.disabledTuiAgents)
-  const local = gitContext?.hostId === 'local' &&
-    Boolean(gitContext.worktreeId && gitContext.worktreePath)
+  const worktreeId = gitContext?.worktreeId ?? ''
+  const worktreePath = gitContext?.worktreePath ?? ''
+  const hostId = gitContext?.hostId ?? ''
+  const local = hostId === 'local' && Boolean(worktreeId && worktreePath)
   useEffect(() => {
-    if (local && gitContext) {
-      void useAppStore.getState().ensureDetectedAgents(gitContext.worktreeId)
-    }
-  }, [local, gitContext?.worktreeId])
-  const inventory = useMemo(() => local && gitContext
-    ? useAppStore.getState().readLocalAgentInventory(gitContext.worktreeId)
-    : { ids: null, state: 'unsupported-host' as const },
-  [local, gitContext?.worktreeId, inventories, detecting, refreshing])
+    if (local) { void useAppStore.getState().ensureDetectedAgents(worktreeId) }
+  }, [local, worktreeId])
+  useEffect(() => { setConfirmed(false) }, [doc.projectId, doc.revision, worktreeId, hostId])
+  const inventory = useMemo(() => {
+    // These store slices notify React when host detection changes.
+    void inventories; void detecting; void refreshing
+    return local
+      ? useAppStore.getState().readLocalAgentInventory(worktreeId)
+      : { ids: null, state: 'unsupported-host' as const }
+  }, [local, worktreeId, inventories, detecting, refreshing])
   const available = previewNativeAgentRouting(doc, inventory.state, inventory.ids, disabled ?? [])
     .installedAgents
   const plans = doc.intelligence?.plans ?? []
@@ -51,15 +55,16 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   const reports = (doc.intelligence?.implementations ?? []).filter(r =>
     r.planId === planId && r.taskId === taskId)
   const lastReport = reports.at(-1)
-  const target: HubNativeTarget = kind === 'atlas'
+  const target = useMemo<HubNativeTarget>(() => kind === 'atlas'
     ? { kind, ...(blockerId ? { blockerId } : {}) }
     : kind === 'forge'
       ? { kind, planId, taskId, baseSha }
-      : { kind, planId, taskId, reportId }
+      : { kind, planId, taskId, reportId },
+  [kind, blockerId, planId, taskId, baseSha, reportId])
   const draft = useMemo(() => {
     try { return buildHubNativeDraft(doc, target) }
     catch { return null }
-  }, [doc, kind, blockerId, planId, taskId, baseSha, reportId])
+  }, [doc, target])
 
   async function readBase(): Promise<void> {
     if (!local || !gitContext || reading) { return }
@@ -67,27 +72,29 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     try {
       const [status, history] = await Promise.all([
         window.api.git.status({
-          worktreePath: gitContext.worktreePath, admissionTier: 'interactive',
+          worktreePath, admissionTier: 'interactive',
           wakeWslDistro: false
         }),
         window.api.git.history({
-          worktreePath: gitContext.worktreePath, limit: 1, wakeWslDistro: false
+          worktreePath, limit: 1, wakeWslDistro: false
         })
       ])
       setBaseSha(projectHubLocalGitSnapshot(status, history).headSha)
       setConfirmed(false)
       setNotice('SHA local capturado: no acredita ejecución ni permisos.')
     } catch (error) {
-      setNotice('Git no disponible o sin HEAD limpio: ' + String(error))
+      setNotice(`Git no disponible o sin HEAD limpio: ${String(error)}`)
     } finally { setReading(false) }
   }
   function openDraft(): void {
     if (!local || !gitContext || !confirmed || !draft || !agent ||
       !available.includes(agent) || reading) { return }
     const store = useAppStore.getState()
-    if (store.activeWorktreeId !== gitContext.worktreeId ||
+    if (gitContext?.hostId !== 'local' ||
+      gitContext.worktreePath !== worktreePath ||
+      store.activeWorktreeId !== worktreeId ||
       !structuredAgentSessionLaunchFeasible(store, {
-        agent, workspace: worktreeLaunchWorkspace(gitContext.worktreeId),
+        agent, workspace: worktreeLaunchWorkspace(worktreeId),
         settings: store.settings
       })) {
       setNotice('Host, worktree o chat nativo no habilitado; no se abrió sesión.')
@@ -96,7 +103,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     try {
       const result = launchAgentInNewTab({
         requestId: newAgentLaunchRequestId(), agent,
-        worktreeId: gitContext.worktreeId, requestedSurface: 'chat',
+        worktreeId, requestedSurface: 'chat',
         prompt: draft.prompt, promptDelivery: 'draft',
         onStructuredHostDeclined: () => ({ opened: false })
       })
@@ -109,8 +116,8 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
         if (outcome.kind === 'failed' || outcome.kind === 'cancelled') {
           setNotice('El host no confirmó la sesión nativa. No se envió un encargo desde Project Hub.')
         }
-      }).catch(error => setNotice('Error de chat nativo: ' + String(error)))
-    } catch (error) { setNotice('Error al abrir el borrador: ' + String(error)) }
+      }).catch(error => setNotice(`Error de chat nativo: ${String(error)}`))
+    } catch (error) { setNotice(`Error al abrir el borrador: ${String(error)}`) }
   }
   return <section className="space-y-2 rounded-lg border border-border bg-card p-3 text-xs"
     aria-label="Project Hub borrador en chat nativo">

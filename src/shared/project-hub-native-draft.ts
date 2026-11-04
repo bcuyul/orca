@@ -37,8 +37,8 @@ export function buildHubNativeDraft(doc: HubDocument, target: HubNativeTarget): 
     }
     if (target.kind === 'qa') {
       const report = intelligence?.implementations?.find(r => r.id === target.reportId)
-      const latest = intelligence?.implementations?.filter(r =>
-        r.planId === plan.id && r.taskId === task.id).at(-1)
+      const latest = intelligence?.implementations?.findLast(r =>
+        r.planId === plan.id && r.taskId === task.id)
       if (!report || report.planId !== plan.id || report.taskId !== task.id ||
         latest?.id !== report.id) {
         throw new Error('QA requiere la última entrega vinculada a esta tarea')
@@ -52,15 +52,15 @@ export function buildHubNativeDraft(doc: HubDocument, target: HubNativeTarget): 
         'Project Hub does not grant access, permissions, worktrees or execution.',
         'Only act after the user explicitly sends this draft; obey native host permissions.',
         '<project-data>',
-        'Project: ' + quote(doc.projectId),
-        'Goal: ' + quote(doc.blueprint.idea),
-        'Plan: ' + quote(plan.id),
-        'Objective: ' + quote(plan.objective),
-        'Task: ' + quote(task.id),
-        'Title: ' + quote(task.title),
-        'Acceptance: ' + quote(task.acceptance),
-        'Dependencies: ' + quote(task.dependsOn.join(', ') || '(none)'),
-        'Declared base SHA (not verified for execution): ' + quote(target.baseSha.toLowerCase()),
+        `Project: ${quote(doc.projectId)}`,
+        `Goal: ${quote(doc.blueprint.idea)}`,
+        `Plan: ${quote(plan.id)}`,
+        `Objective: ${quote(plan.objective)}`,
+        `Task: ${quote(task.id)}`,
+        `Title: ${quote(task.title)}`,
+        `Acceptance: ${quote(task.acceptance)}`,
+        `Dependencies: ${quote(task.dependsOn.join(', ') || '(none)')}`,
+        `Declared base SHA (not verified for execution): ${quote(target.baseSha.toLowerCase())}`,
         '</project-data>',
         'Implement only this task within the authorized workspace. No secrets, merge, push or deployment.',
         'Return base/head SHAs, changed files, tests and failures for independent QA.',
