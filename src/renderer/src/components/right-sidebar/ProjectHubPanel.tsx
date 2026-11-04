@@ -3,6 +3,7 @@ import { LayoutDashboard, Plus, ShieldCheck } from 'lucide-react'
 import { ProjectHubJiraImport, ProjectHubArchitecture, ProjectHubQuality, ProjectHubTeam } from './ProjectHubDesignViews'
 import ProjectHubDelegationRunner from './ProjectHubDelegationRunner'
 import ProjectHubIntelligencePanel from './ProjectHubIntelligencePanel'
+import ProjectHubOverview from './ProjectHubOverview'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
@@ -93,11 +94,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
         </div>
       </div>
       {tab==='summary'&&<>
-        <div className="grid grid-cols-2 gap-2">
-          {[['Ítems',shown.items.length],['Terminados',shown.items.filter(i=>i.status==='done').length],
-            ['QA',shown.items.filter(i=>i.status==='review').length],['Bloqueados',shown.items.filter(i=>i.status==='blocked').length]].map(([label,value])=>
-            <div key={label} className="rounded-lg border border-border bg-card p-3"><div className="text-2xl font-semibold">{value}</div><div className="text-xs text-muted-foreground">{label}</div></div>)}
-        </div>
+        <ProjectHubOverview doc={shown}/>
         <div className="rounded-lg border border-border bg-card p-3">
           <h3 className="mb-2 text-sm font-medium">Aprobación de fase</h3>
           <p className="mb-2 text-xs text-muted-foreground">Aprobación humana: completa las cuatro evidencias en QA. Esto no sustituye un CI real.</p>
