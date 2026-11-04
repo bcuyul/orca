@@ -10,6 +10,14 @@ type Props = {
   onSave: (next: HubDocument) => Promise<boolean>
 }
 
+/** Generate audit metadata only after an explicit click, not during React render. */
+function newLinkEvent(planId: string, taskId: string, storyId: string): HubTaskLinkEvent {
+  return {
+    id: `link-${createBrowserUuid().replaceAll('-', '')}`,
+    planId, taskId, storyId: storyId || null, at: new Date().toISOString()
+  }
+}
+
 export default function ProjectHubTaskLinks({ doc, busy, onSave }: Props): React.JSX.Element {
   const preview = useMemo(() => projectHubBacklogLinks(doc), [doc])
   const [draft, setDraft] = useState<Record<string, string>>({})
@@ -22,11 +30,7 @@ export default function ProjectHubTaskLinks({ doc, busy, onSave }: Props): React
     if (busy || !preview.approvedPlanId || (doc.taskLinks?.length ?? 0) >= 100 ||
         !preview.tasks.some(task => task.id === taskId && task.storyId !== (storyId || null)) ||
         (storyId !== '' && !stories.some(item => item.id === storyId))) { return }
-    const entry: HubTaskLinkEvent = {
-      id: `link-${createBrowserUuid().replaceAll('-', '')}`,
-      planId: preview.approvedPlanId, taskId,
-      storyId: storyId || null, at: new Date().toISOString()
-    }
+    const entry = newLinkEvent(preview.approvedPlanId, taskId, storyId)
     if (await onSave({ ...doc, taskLinks: [...(doc.taskLinks ?? []), entry] })) {
       setDraft(previous => {
         const next = { ...previous }
