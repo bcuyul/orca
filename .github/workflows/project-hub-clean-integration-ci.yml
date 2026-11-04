@@ -6,7 +6,7 @@ on:
     # A user-authenticated empty commit can explicitly trigger CI for this
     # stacked Draft PR even when connector-authored commits produce no runs.
     # Restrict by branch; do not add a paths filter (empty commits have no paths).
-    branches: [feat/project-hub-native-plan-preview, feat/project-hub-materialization-inspection, feat/project-hub-traceable-handoffs, feat/project-hub-handoff-ui]
+    branches: [feat/project-hub-native-plan-preview, feat/project-hub-materialization-inspection, feat/project-hub-traceable-handoffs, feat/project-hub-handoff-ui, ci/project-hub-pr24-math-20261104]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, integration/project-hub-adaptive-clean]
