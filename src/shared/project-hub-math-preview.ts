@@ -24,6 +24,21 @@ export type ProjectHubBudgetResult = {
   /** Constraint-respecting *hypothetical* plan, never a host dispatch. */
   status: 'heuristic-only'
 }
+/** Exhaustive benchmark is deliberately bounded: at most 4096 subsets. */
+export const PROJECT_HUB_EXACT_TASK_LIMIT = 12
+
+export type ProjectHubExactResult = {
+  selectedIds: string[]
+  totalEffort: number
+  totalValue: number
+  status: 'exact-for-additive-model'
+  evaluatedSubsets: number
+  feasibleSubsets: number
+}
+export type ProjectHubOptimalityGap = {
+  absolute: number
+  percent: number
+}
 export type ProjectHubMathResult = {
   planId: string
   weights: PriorityWeights
@@ -31,6 +46,10 @@ export type ProjectHubMathResult = {
   rankingByValuePerEffort: RankedCandidate[]
   fifo: ProjectHubBudgetResult
   valuePerEffort: ProjectHubBudgetResult
+  exact: ProjectHubExactResult | null
+  fifoGap: ProjectHubOptimalityGap | null
+  valuePerEffortGap: ProjectHubOptimalityGap | null
+  exactTaskLimit: typeof PROJECT_HUB_EXACT_TASK_LIMIT
   unverified: true
   executionAuthorized: false
 }
@@ -85,6 +104,69 @@ function greedyBudget(
 }
 
 /**
+ * Exact knapsack-with-precedence benchmark for the stated additive MCDA model.
+ * Exhaustive 2^n subsets, O(2^n * n), n <= 12. Not resource scheduling,
+ * probability, agent admission or a guarantee about real-world outcomes.
+ */
+function exactBudget(
+  plan: HubPlanProposal,
+  scores: ReadonlyMap<string, RankedCandidate>,
+  effort: ReadonlyMap<string, number>,
+  budget: number
+): ProjectHubExactResult | null {
+  const tasks = plan.tasks
+  if (tasks.length > PROJECT_HUB_EXACT_TASK_LIMIT) { return null }
+  const position = new Map(tasks.map((task, index) => [task.id, index]))
+  const deps = tasks.map(task => task.dependsOn.reduce((mask, dep) => {
+    const index = position.get(dep)
+    if (index === undefined) { throw new Error('Dependencia no encontrada') }
+    return mask | (1 << index)
+  }, 0))
+  const subsetCount = 1 << tasks.length
+  let bestMask = 0, bestValue = 0, bestEffort = 0, feasibleSubsets = 0
+  for (let mask = 0; mask < subsetCount; mask++) {
+    let totalValue = 0, totalEffort = 0, feasible = true
+    for (let i = 0; i < tasks.length; i++) {
+      if ((mask & (1 << i)) === 0) { continue }
+      if ((mask & deps[i]!) !== deps[i]) { feasible = false; break }
+      const id = tasks[i]!.id
+      totalEffort += effort.get(id) ?? 0
+      // Strict cap: no epsilon allowance for numerical overspend.
+      if (totalEffort > budget) { feasible = false; break }
+      totalValue += scores.get(id)?.value ?? 0
+    }
+    if (!feasible) { continue }
+    feasibleSubsets++
+    // Deterministic: maximal value, then minimal effort, then first mask.
+    if (totalValue > bestValue ||
+        (totalValue === bestValue && totalEffort < bestEffort)) {
+      bestMask = mask
+      bestValue = totalValue
+      bestEffort = totalEffort
+    }
+  }
+  return {
+    selectedIds: tasks.filter((_, index) => (bestMask & (1 << index)) !== 0)
+      .map(task => task.id),
+    totalEffort: bestEffort,
+    totalValue: bestValue,
+    status: 'exact-for-additive-model',
+    evaluatedSubsets: subsetCount,
+    feasibleSubsets
+  }
+}
+
+function optimalityGap(
+  exact: ProjectHubExactResult | null,
+  candidate: ProjectHubBudgetResult
+): ProjectHubOptimalityGap | null {
+  if (!exact) { return null }
+  const absolute = Math.max(0, exact.totalValue - candidate.totalValue)
+  return { absolute, percent: exact.totalValue === 0 ? 0 :
+    (100 * absolute) / exact.totalValue }
+}
+
+/**
  * The same numerical estimates are compared under FIFO and value/effort.
  * Swing judgments, effort and budgets are human scenario inputs, not telemetry.
  * No raw LLM output, permissions or user-entered "admission" are accepted.
@@ -133,14 +215,21 @@ export function simulateProjectHubMath(input: ProjectHubMathScenario): ProjectHu
   const rankingByValuePerEffort = [...scores.values()].sort(
     (a, b) => b.valuePerEffort - a.valuePerEffort || a.id.localeCompare(b.id, 'en')
   )
+  const fifo = greedyBudget(plan, plan.tasks.map(task => task.id), scores, effort, budget)
+  const valuePerEffort = greedyBudget(plan,
+    rankingByValuePerEffort.map(score => score.id), scores, effort, budget)
+  const exact = exactBudget(plan, scores, effort, budget)
   return {
     planId: plan.id,
     weights,
     rankingByValue,
     rankingByValuePerEffort,
-    fifo: greedyBudget(plan, plan.tasks.map(task => task.id), scores, effort, budget),
-    valuePerEffort: greedyBudget(plan,
-      rankingByValuePerEffort.map(score => score.id), scores, effort, budget),
+    fifo,
+    valuePerEffort,
+    exact,
+    fifoGap: optimalityGap(exact, fifo),
+    valuePerEffortGap: optimalityGap(exact, valuePerEffort),
+    exactTaskLimit: PROJECT_HUB_EXACT_TASK_LIMIT,
     unverified: true,
     executionAuthorized: false
   }
