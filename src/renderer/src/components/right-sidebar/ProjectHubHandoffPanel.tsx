@@ -12,8 +12,16 @@ import {
   renderForgeImplementationPrompt, renderQaReviewPrompt
 } from '../../../../shared/project-hub-intelligence-prompts'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import {
+  projectHubLocalGitSnapshot, projectHubGitDeliveryReference
+} from '../../../../shared/project-hub-git-assist'
 
-type Props = { doc: HubDocument; busy: boolean; onSave: (next: HubDocument) => Promise<boolean> }
+type Props = {
+  doc: HubDocument
+  busy: boolean
+  onSave: (next: HubDocument) => Promise<boolean>
+  gitContext?: { worktreeId: string; worktreePath: string; hostId: string }
+}
 const field = 'w-full rounded border border-border bg-background p-2 text-xs'
 const button = 'rounded border border-border bg-muted px-3 py-2 text-xs disabled:opacity-40'
 const stamp = (): string => new Date().toISOString()
@@ -31,7 +39,9 @@ const labels: Record<HubHandoffStage,string> = {
   blocked: 'Bloqueado; requiere replanificación'
 }
 
-export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): React.JSX.Element {
+export default function ProjectHubHandoffPanel({
+  doc, busy, onSave, gitContext
+}: Props): React.JSX.Element {
   const state = doc.intelligence ?? emptyHubIntelligence()
   const [planId, setPlanId] = useState('')
   const [taskId, setTaskId] = useState('')
@@ -46,6 +56,10 @@ export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): Re
   const [qaFindings, setQaFindings] = useState('')
   const [verdict, setVerdict] = useState<HubQualityReview['verdict']>('inconclusive')
   const [notice, setNotice] = useState('')
+  const [readingGit, setReadingGit] = useState(false)
+  const [capturedHeadSha, setCapturedHeadSha] = useState<string | null>(null)
+  const localGit = gitContext?.hostId === 'local' &&
+    Boolean(gitContext.worktreeId && gitContext.worktreePath)
 
   const plan = state.plans.find(p => p.id === planId)
   const task = plan?.tasks.find(t => t.id === taskId)
@@ -62,7 +76,8 @@ export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): Re
   const canHandoff = readiness?.approvedByHuman === true &&
     !!task && workingRoles.has(task.role) &&
     readiness.tasks.find(t => t.id === taskId)?.stage !== 'blocked'
-  const canRecord = canHandoff && !busy && (state.implementations?.length ?? 0) < 100 &&
+  const canRecord = canHandoff && !busy && !readingGit &&
+    (state.implementations?.length ?? 0) < 100 &&
     actor.trim().length >= 5 && actor.length <= 80 &&
     sha.test(baseSha) && sha.test(headSha) && evidenceRef.trim().length >= 5 &&
     testSummary.trim().length >= 5
@@ -88,6 +103,52 @@ export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): Re
       setNotice('No se pudo copiar el encargo.')
     }
   }
+  async function captureGit(target: 'base' | 'delivery'): Promise<void> {
+    if (readingGit || busy || !localGit || !gitContext) { return }
+    // Git is inspected only for the selected, local Orca worktree. This is not
+    // a shell invocation or permission to create a session, Run or Dispatch.
+    const context = gitContext
+    setReadingGit(true)
+    setNotice('')
+    try {
+      const [status, history] = await Promise.all([
+        window.api.git.status({
+          worktreePath: context.worktreePath,
+          admissionTier: 'interactive',
+          wakeWslDistro: false
+        }),
+        window.api.git.history({
+          worktreePath: context.worktreePath,
+          limit: 1,
+          wakeWslDistro: false
+        })
+      ])
+      const snapshot = projectHubLocalGitSnapshot(status, history)
+      if (target === 'base') {
+        setBaseSha(snapshot.headSha)
+        setCapturedHeadSha(null)
+        setHeadSha('')
+        setNotice(`Base capturada desde Git local: ${snapshot.headSha.slice(0, 12)}. No acredita ejecución.`)
+      } else {
+        const reference = projectHubGitDeliveryReference(baseSha, snapshot.headSha)
+        setHeadSha(snapshot.headSha)
+        setCapturedHeadSha(snapshot.headSha)
+        setEvidenceRef(reference)
+        setNotice('Entrega identificada en Git local. Falta confirmar diff, pruebas y QA de forma independiente.')
+      }
+    } catch (reason) {
+      // Never leave an older captured delivery presented as a fresh observation.
+      if (target === 'delivery' && capturedHeadSha === headSha) {
+        setHeadSha('')
+        setCapturedHeadSha(null)
+        setEvidenceRef('')
+      }
+      setNotice(`Inspección Git no disponible: ${String(reason)}`)
+    } finally {
+      setReadingGit(false)
+    }
+  }
+
   async function recordDelivery(): Promise<void> {
     if (!plan || !task || !canRecord) { return }
     const item: HubImplementationEvidence = {
@@ -124,7 +185,7 @@ export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): Re
       ejecución automática, autenticación de agentes ni validación remota de CI.</p>
     <label className="block">Plan de Atlas para entregar
       <select className={field} aria-label="Plan para entrega Forge" value={planId}
-        onChange={e=>{setPlanId(e.target.value);setTaskId('');setReviewReportId('')}} disabled={busy}>
+        onChange={e=>{setPlanId(e.target.value);setTaskId('');setReviewReportId('')}} disabled={busy || readingGit}>
         <option value="">Seleccionar plan</option>
         {state.plans.map(p=><option value={p.id} key={p.id}>{p.objective.slice(0,85)}</option>)}
       </select>
@@ -140,7 +201,7 @@ export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): Re
     </div>}
     <label className="block">Tarea de Forge/Flow/Data
       <select className={field} aria-label="Tarea para entrega Forge" value={taskId}
-        disabled={busy || !readiness?.approvedByHuman}
+        disabled={busy || readingGit || !readiness?.approvedByHuman}
         onChange={e=>{setTaskId(e.target.value);setReviewReportId('')}}>
         <option value="">Seleccionar tarea</option>
         {plan?.tasks.filter(t=>workingRoles.has(t.role)).map(t=><option key={t.id} value={t.id}>{t.id} · {t.title}</option>)}
@@ -153,16 +214,30 @@ export default function ProjectHubHandoffPanel({ doc, busy, onSave }: Props): Re
     </label>
     <label className="block">SHA base (40 caracteres)
       <input className={field} aria-label="SHA base de Forge" value={baseSha}
-        onChange={e=>setBaseSha(e.target.value)} maxLength={40} disabled={busy}/>
+        onChange={e=>setBaseSha(e.target.value)} maxLength={40} disabled={busy || readingGit}/>
     </label>
+    <button className={button} type="button" disabled={busy || readingGit || !localGit || !canHandoff}
+      onClick={() => void captureGit('base')}>
+      Leer SHA base desde Git local (solo lectura)
+    </button>
     <button className={button} type="button" disabled={!canHandoff || !sha.test(baseSha) || busy}
       onClick={()=>plan&&task&&void copyPrompt(renderForgeImplementationPrompt(doc,plan,task.id,baseSha))}>
       Copiar encargo Forge (sin ejecutar)
     </button>
     <label className="block">SHA de la entrega externa (40 caracteres)
       <input className={field} aria-label="SHA de entrega Forge" value={headSha}
-        onChange={e=>setHeadSha(e.target.value)} maxLength={40} disabled={busy}/>
+        onChange={e=>{setHeadSha(e.target.value);setCapturedHeadSha(null)}}
+        maxLength={40} disabled={busy || readingGit}/>
     </label>
+    <button className={button} type="button"
+      disabled={busy || readingGit || !localGit || !canHandoff || !sha.test(baseSha)}
+      onClick={() => void captureGit('delivery')}>
+      Leer entrega desde Git local (sin pegar SHA)
+    </button>
+    {!localGit && <p className="text-muted-foreground">
+      Inspección Git asistida disponible para worktrees locales. Para otros hosts
+      se mantiene el registro manual hasta tener recibos verificados del host.
+    </p>}
     <label className="block">Referencia del diff o artefacto (no verificada)
       <input className={field} aria-label="Evidencia de Forge" value={evidenceRef}
         onChange={e=>setEvidenceRef(e.target.value)} maxLength={600} disabled={busy}/>

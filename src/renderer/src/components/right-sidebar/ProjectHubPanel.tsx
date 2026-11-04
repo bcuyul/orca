@@ -160,7 +160,11 @@ export default function ProjectHubPanel(): React.JSX.Element {
           hostId={worktree?.hostId??''} branch={worktree?.branch??''}
           onSave={save}/>
       </div>}
-      {tab==='intelligence'&&<ProjectHubIntelligencePanel doc={shown} busy={busy} onSave={save}/>}
+      {tab==='intelligence'&&<ProjectHubIntelligencePanel key={`${projectId}:${worktree?.id ?? ''}`}
+        doc={shown} busy={busy} onSave={save}
+        gitContext={worktree ? {
+          worktreeId: worktree.id, worktreePath: worktree.path, hostId: worktree.hostId ?? ''
+        } : undefined}/>}
       {tab==='architecture'&&<ProjectHubArchitecture doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
       {tab==='qa'&&<ProjectHubQuality doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
       {tab==='team'&&<ProjectHubTeam doc={shown} busy={busy} branch={worktree?.branch??''} onSave={save}/>}
