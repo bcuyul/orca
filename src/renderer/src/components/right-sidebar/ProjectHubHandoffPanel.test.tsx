@@ -78,8 +78,9 @@ describe('Project Hub assisted manual Git handoff', () => {
     history.mockResolvedValue(inspected(HEAD).history)
     fireEvent.click(screen.getByRole('button', { name: /Leer entrega desde Git local/ }))
     await waitFor(() => expect(delivery).toHaveValue(HEAD))
-    expect(screen.getByRole('textbox', { name: 'Evidencia de Forge' }))
-      .toHaveValue(expect.stringContaining(HEAD))
+    expect((screen.getByRole('textbox', {
+      name: 'Evidencia de Forge'
+    }) as HTMLInputElement).value).toContain(HEAD)
     expect(screen.getByRole('button', { name: /Registrar entrega externa/ })).toBeDisabled()
     expect(save).not.toHaveBeenCalled()
   })
