@@ -20,7 +20,8 @@ export function projectHubLocalGitSnapshot(
 ): HubLocalGitSnapshot {
   if (!status || !history || !Array.isArray(status.entries) ||
       !Array.isArray(history.items) || status.readError ||
-      status.didHitLimit || status.entries.length !== 0) {
+      status.didHitLimit || status.entries.length !== 0 ||
+      (status.conflictOperation !== 'unknown' && status.conflictOperation !== undefined)) {
     throw new Error('Git no confirma un árbol limpio; revisa los cambios antes de capturar.')
   }
   const head = status.head
