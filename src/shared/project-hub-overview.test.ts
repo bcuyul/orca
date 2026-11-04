@@ -3,7 +3,7 @@ import { emptyProjectHub } from './project-hub-types'
 import { emptyHubIntelligence, type HubImplementationEvidence, type HubQualityReview } from './project-hub-intelligence'
 import { projectHubOverview } from './project-hub-overview'
 
-const at = (minute: number): string => '2026-11-04T10:' + String(minute).padStart(2, '0') + ':00Z'
+const at = (minute: number): string => `2026-11-04T10:${String(minute).padStart(2, '0')}:00Z`
 const sha = (char: string): string => char.repeat(40)
 
 function makeLab() {

@@ -49,10 +49,10 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
     ready: 0, done: 0, review: 0, blocked: 0
   }
   for (const item of doc.items) {
-    if (item.status === 'ready') backlog.ready++
-    if (item.status === 'done') backlog.done++
-    if (item.status === 'review') backlog.review++
-    if (item.status === 'blocked') backlog.blocked++
+    if (item.status === 'ready') { backlog.ready++ }
+    if (item.status === 'done') { backlog.done++ }
+    if (item.status === 'review') { backlog.review++ }
+    if (item.status === 'blocked') { backlog.blocked++ }
   }
 
   const approvedIds = new Set((state?.decisions ?? []).filter(d =>
@@ -71,7 +71,7 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
   const reviews = state?.reviews ?? []
   let linkedReviews = 0
   for (const review of reviews) {
-    if (review.implementationId && reportsById.has(review.implementationId)) linkedReviews++
+    if (review.implementationId && reportsById.has(review.implementationId)) { linkedReviews++ }
   }
 
   const activity: (HubOverviewEvent & { order: number })[] = []
@@ -79,7 +79,7 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
     activity.push({ ...event, order: activity.length })
   }
   for (const decision of state?.decisions ?? []) {
-    if (decision.subject !== 'plan') continue
+    if (decision.subject !== 'plan') { continue }
     const plan = plans.find(p => p.id === decision.subjectId)
     add({
       id: decision.id, kind: 'plan', at: decision.createdAt,
@@ -92,7 +92,7 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
     add({
       id: report.id, kind: 'implementation', at: report.createdAt,
       title: 'Entrega externa declarada',
-      description: report.taskId + ' · ' + report.headSha.slice(0, 12) +
+      description: `${report.taskId} · ${report.headSha.slice(0, 12)}` +
         (report.previousImplementationId ? ' · nueva versión' : ''),
       provenance: 'external-unverified'
     })
@@ -107,8 +107,7 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
     add({
       id: review.id, kind: 'review', at: review.createdAt,
       title: verdictNames[review.verdict],
-      description: review.taskId + (report ? ' · ' + report.headSha.slice(0, 12) :
-        ' · sin entrega vinculada'),
+      description: `${review.taskId} · ${report?.headSha.slice(0, 12) ?? 'sin entrega vinculada'}`,
       provenance: 'human-declared'
     })
   }
