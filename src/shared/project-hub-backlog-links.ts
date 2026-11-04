@@ -30,8 +30,9 @@ export function isHubTaskLinkHistory(doc: LinkDocument): boolean {
   const current = new Map<string, string | null>()
   for (const item of events) {
     if (!item || typeof item !== 'object' || Array.isArray(item) ||
-        !ID.test(item.id) || ids.has(item.id) ||
-        !ID.test(item.planId) || !ID.test(item.taskId) || !atValid(item.at) ||
+        typeof item.id !== 'string' || !ID.test(item.id) || ids.has(item.id) ||
+        typeof item.planId !== 'string' || !ID.test(item.planId) ||
+        typeof item.taskId !== 'string' || !ID.test(item.taskId) || !atValid(item.at) ||
         (item.storyId !== null &&
           (typeof item.storyId !== 'string' || !stories.has(item.storyId)))) { return false }
     const plan = plans.find(plan => plan.id === item.planId)
