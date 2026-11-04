@@ -60,12 +60,34 @@ describe('Adaptive session and worktree placement (advisory only)', () => {
     }
   })
 
+  it('fails closed on ambiguous matching sessions and duplicate host session IDs', () => {
+    const input = sample()
+    input.sessions = [
+      session(),
+      { ...session(), id: 'session-forge-duplicate' }
+    ]
+    expect(recommendSessionPlacement(input)).toMatchObject({
+      choice: 'reconcile-first', existingSessionId: null, executionAuthorized: false
+    })
+    expect(recommendSessionPlacement(input).reasons[0]).toMatch(/ambiguous/i)
+
+    // Even IDs duplicated across different tasks require host reconciliation.
+    input.sessions = [
+      session(),
+      { ...session(), taskId: 'other-task', id: 'session-forge' }
+    ]
+    expect(recommendSessionPlacement(input).choice).toBe('reconcile-first')
+
+    input.sessions = [session()]
+    expect(recommendSessionPlacement(input).choice).toBe('reuse-session')
+  })
+
   it('does not leak or reuse a session from another project, host or agent', () => {
     const input = sample()
     input.sessions = [
-      { ...session(), projectId: 'repo:other' },
-      { ...session(), hostId: 'remote' },
-      { ...session(), agentId: 'claude' }
+      { ...session(), id: 'session-other-project', projectId: 'repo:other' },
+      { ...session(), id: 'session-remote-host', hostId: 'remote' },
+      { ...session(), id: 'session-claude', agentId: 'claude' }
     ]
     expect(recommendSessionPlacement(input)).toMatchObject({
       choice: 'new-session', memory: 'none', existingSessionId: null

@@ -148,6 +148,12 @@ export function recommendSessionPlacement(input: PlacementInput): PlacementRecom
     session.taskId === task.id && session.role === task.role &&
     session.agentId === task.agentId && session.state !== 'closed'
   )
+  // Multiple live records for one task/agent identity cannot be chosen by array order.
+  // Reconcile with the host instead of silently reusing the first idle match.
+  if (matching.length > 1 ||
+      new Set(sessions.map(session => session.id)).size !== sessions.length) {
+    return recommend('reconcile-first', 'Duplicate or ambiguous host session identities')
+  }
   if (matching.some(session =>
     !session.hostObserved || !session.generationCurrent ||
     session.state === 'unknown' || session.context === 'unknown')) {
