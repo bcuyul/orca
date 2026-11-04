@@ -57,6 +57,7 @@ export default function ProjectHubHandoffPanel({
   const [verdict, setVerdict] = useState<HubQualityReview['verdict']>('inconclusive')
   const [notice, setNotice] = useState('')
   const [readingGit, setReadingGit] = useState(false)
+  const [capturedHeadSha, setCapturedHeadSha] = useState<string | null>(null)
   const localGit = gitContext?.hostId === 'local' &&
     Boolean(gitContext.worktreeId && gitContext.worktreePath)
 
@@ -125,18 +126,21 @@ export default function ProjectHubHandoffPanel({
       const snapshot = projectHubLocalGitSnapshot(status, history)
       if (target === 'base') {
         setBaseSha(snapshot.headSha)
+        setCapturedHeadSha(null)
         setHeadSha('')
         setNotice(`Base capturada desde Git local: ${snapshot.headSha.slice(0, 12)}. No acredita ejecución.`)
       } else {
         const reference = projectHubGitDeliveryReference(baseSha, snapshot.headSha)
         setHeadSha(snapshot.headSha)
+        setCapturedHeadSha(snapshot.headSha)
         setEvidenceRef(reference)
         setNotice('Entrega identificada en Git local. Falta confirmar diff, pruebas y QA de forma independiente.')
       }
     } catch (reason) {
       // Never leave an older captured delivery presented as a fresh observation.
-      if (target === 'delivery') {
+      if (target === 'delivery' && capturedHeadSha === headSha) {
         setHeadSha('')
+        setCapturedHeadSha(null)
         setEvidenceRef('')
       }
       setNotice(`Inspección Git no disponible: ${String(reason)}`)
@@ -222,7 +226,8 @@ export default function ProjectHubHandoffPanel({
     </button>
     <label className="block">SHA de la entrega externa (40 caracteres)
       <input className={field} aria-label="SHA de entrega Forge" value={headSha}
-        onChange={e=>setHeadSha(e.target.value)} maxLength={40} disabled={busy || readingGit}/>
+        onChange={e=>{setHeadSha(e.target.value);setCapturedHeadSha(null)}}
+        maxLength={40} disabled={busy || readingGit}/>
     </label>
     <button className={button} type="button"
       disabled={busy || readingGit || !localGit || !canHandoff || !sha.test(baseSha)}
