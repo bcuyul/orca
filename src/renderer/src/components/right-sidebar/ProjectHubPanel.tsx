@@ -5,6 +5,7 @@ import ProjectHubDelegationRunner from './ProjectHubDelegationRunner'
 import ProjectHubIntelligencePanel from './ProjectHubIntelligencePanel'
 import ProjectHubOverview from './ProjectHubOverview'
 import ProjectHubNativeAgentPreview from './ProjectHubNativeAgentPreview'
+import ProjectHubMathPreview from './ProjectHubMathPreview'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
@@ -152,6 +153,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
       {tab==='delegate'&&<div className="space-y-3">
         <ProjectHubNativeAgentPreview doc={shown} worktreeId={worktree?.id??''}
           hostId={worktree?.hostId??''} gitHead={worktree?.head??''}/>
+        <ProjectHubMathPreview doc={shown}/>
         <ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
           hostId={worktree?.hostId??''} branch={worktree?.branch??''}
           onSave={save}/>

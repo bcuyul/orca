@@ -105,6 +105,8 @@ jobs:
             src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts \
             src/shared/secure-file.test.ts \
             src/shared/secure-file-windows.test.ts
+      - name: Exercise Project Hub mathematical scenario form
+        run: pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/components/right-sidebar/ProjectHubMathPreview.test.tsx
       - name: Whole workspace typecheck
         run: pnpm typecheck
 
