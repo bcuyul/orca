@@ -290,3 +290,30 @@ test('Atlas-approved Forge evidence is linked to QA without any agent execution 
   await expect(orcaPage.getByText('QA aprobó (declarado; CI no verificado)',{exact:false}))
     .toBeVisible()
 })
+
+
+test('Project Hub native draft requires explicit user action @project-hub-native-draft', async ({ orcaPage }) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) { throw new Error('Missing isolated renderer store') }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Inteligencia', exact: true })
+    .evaluate(element => { (element as HTMLButtonElement).click() })
+  const panel = orcaPage.getByRole('region', {
+    name: 'Project Hub borrador en chat nativo'
+  })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('textbox', { name: 'Borrador preparado' }))
+    .toHaveValue(/Atlas: propose a plan/)
+  await expect(panel.getByRole('button', { name: 'Abrir borrador en chat nativo' }))
+    .toBeDisabled()
+  await expect(panel.getByRole('button', { name: 'Coordinator: ejecución bloqueada' }))
+    .toBeDisabled()
+  await expect(panel.getByRole('checkbox', { name: /Revisé el encargo/ }))
+    .not.toBeChecked()
+})

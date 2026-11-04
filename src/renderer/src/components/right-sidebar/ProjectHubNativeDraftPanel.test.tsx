@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { emptyProjectHub } from '../../../../shared/project-hub-types'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
 
@@ -81,4 +81,21 @@ describe('Project Hub native draft launch', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir borrador en chat nativo' }))
     expect(mocks.launch).not.toHaveBeenCalled()
   })
+
+  it('invalidates human review when the project revision changes', async () => {
+    const doc = emptyProjectHub('project:lab')
+    const { rerender } = render(<ProjectHubNativeDraftPanel doc={doc}
+      gitContext={gitContext}/>)
+    fireEvent.change(screen.getByRole('combobox', { name: /Agente detectado/ }), {
+      target: { value: 'codex' }
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Revisé el encargo/ }))
+    const button = screen.getByRole('button', { name: 'Abrir borrador en chat nativo' })
+    expect(button).toBeEnabled()
+    rerender(<ProjectHubNativeDraftPanel doc={{ ...doc, revision: 1 }}
+      gitContext={gitContext}/>)
+    await waitFor(() => expect(button).toBeDisabled())
+    expect(mocks.launch).not.toHaveBeenCalled()
+  })
+
 })
