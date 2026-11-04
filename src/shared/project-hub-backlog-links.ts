@@ -1,6 +1,6 @@
 /** Explicit, append-only linkage between stories and approved Atlas DAG tasks.
  * Linkage only: it never changes backlog state or proves execution, QA or CI. */
-import type { HubDocument } from './project-hub-types'
+import type { HubDocument, HubStatus } from './project-hub-types'
 import { projectHubHandoffReadiness, type HubHandoffStage } from './project-hub-handoff-readiness'
 
 export type HubTaskLinkEvent = {
@@ -94,6 +94,57 @@ export function projectHubBacklogLinks(doc: HubDocument): HubBacklogLinkProjecti
   return {
     approvedPlanId: plan.id, tasks,
     unlinkedTaskCount: tasks.filter(task => task.storyId === null).length,
+    executionAuthorized: false, autoStatusSync: false
+  }
+}
+
+/** Per-story diagnostic projection. No status transitions or verified execution claims. */
+export type HubStoryEvidenceRow = {
+  storyId: string
+  title: string
+  backlogStatus: HubStatus
+  linkedTaskCount: number
+  plannedOrUnverifiedCount: number
+  awaitingQaCount: number
+  qaApprovedDeclaredCount: number
+  blockedOrCorrectionsCount: number
+}
+export type HubStoryEvidenceProjection = {
+  approvedPlanId: string | null
+  stories: HubStoryEvidenceRow[]
+  unlinkedTaskCount: number
+  executionAuthorized: false
+  autoStatusSync: false
+}
+
+/** Aggregate only explicitly linked tasks of the latest accepted plan, in O(stories+tasks). */
+export function projectHubStoryEvidence(doc: HubDocument): HubStoryEvidenceProjection {
+  const projection = projectHubBacklogLinks(doc)
+  const rows = doc.items.filter(item => item.type === 'story').map(item => ({
+    storyId: item.id, title: item.title, backlogStatus: item.status,
+    linkedTaskCount: 0, plannedOrUnverifiedCount: 0,
+    awaitingQaCount: 0, qaApprovedDeclaredCount: 0, blockedOrCorrectionsCount: 0
+  }))
+  const byId = new Map(rows.map(item => [item.storyId, item]))
+  for (const task of projection.tasks) {
+    if (!task.storyId) { continue }
+    const story = byId.get(task.storyId)
+    if (!story) { continue }
+    story.linkedTaskCount++
+    if (task.stage === 'blocked' || task.stage === 'changes_requested') {
+      story.blockedOrCorrectionsCount++
+    } else if (task.stage === 'qa_approved_attested') {
+      story.qaApprovedDeclaredCount++
+    } else if (task.stage === 'awaiting_qa' || task.stage === 'qa_inconclusive') {
+      story.awaitingQaCount++
+    } else {
+      story.plannedOrUnverifiedCount++
+    }
+  }
+  return {
+    approvedPlanId: projection.approvedPlanId,
+    stories: rows,
+    unlinkedTaskCount: projection.unlinkedTaskCount,
     executionAuthorized: false, autoStatusSync: false
   }
 }
