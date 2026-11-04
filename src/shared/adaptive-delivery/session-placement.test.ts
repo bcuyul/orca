@@ -85,9 +85,9 @@ describe('Adaptive session and worktree placement (advisory only)', () => {
   it('does not leak or reuse a session from another project, host or agent', () => {
     const input = sample()
     input.sessions = [
-      { ...session(), projectId: 'repo:other' },
-      { ...session(), hostId: 'remote' },
-      { ...session(), agentId: 'claude' }
+      { ...session(), id: 'session-other-project', projectId: 'repo:other' },
+      { ...session(), id: 'session-remote-host', hostId: 'remote' },
+      { ...session(), id: 'session-claude', agentId: 'claude' }
     ]
     expect(recommendSessionPlacement(input)).toMatchObject({
       choice: 'new-session', memory: 'none', existingSessionId: null
