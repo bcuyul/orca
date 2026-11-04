@@ -56,6 +56,10 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
     ])
     expect(result.valuePerEffort.totalEffort).toBe(3)
     expect(result.valuePerEffort.totalValue).toBeCloseTo(140)
+    expect(result.exact?.selectedIds).toEqual(['forge-lab-01', 'qa-lab-01'])
+    expect(result.exact?.totalValue).toBeCloseTo(140)
+    expect(result.exact?.evaluatedSubsets).toBe(8)
+    expect(result.valuePerEffortGap?.absolute).toBe(0)
     expect(result.fifo.selectedIds).toEqual(['forge-lab-01', 'qa-lab-01'])
     expect(result.unverified).toBe(true)
     expect(result.executionAuthorized).toBe(false)
@@ -80,6 +84,8 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
     expect(guarded.fifo.totalEffort).toBeLessThanOrEqual(nearBoundary.budget)
     expect(guarded.valuePerEffort.totalEffort).toBeLessThanOrEqual(nearBoundary.budget)
     expect(guarded.valuePerEffort.selectedIds).toEqual([])
+    expect(guarded.exact?.selectedIds).toEqual([])
+    expect(guarded.exact?.totalEffort).toBeLessThanOrEqual(nearBoundary.budget)
   })
 
   it('rejects over-budget dependent closure, but may select a cheaper independent item', () => {
@@ -157,7 +163,102 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
     expect(result.valuePerEffort.totalValue).toBeCloseTo(60)
     expect(result.fifo.selectedIds).toEqual(['forge-lab-01'])
     expect(result.fifo.totalValue).toBeCloseTo(100)
+    expect(result.exact?.selectedIds).toEqual(['forge-lab-01'])
+    expect(result.exact?.totalValue).toBeCloseTo(100)
+    expect(result.valuePerEffortGap?.absolute).toBeCloseTo(40)
+    expect(result.valuePerEffortGap?.percent).toBeCloseTo(40)
+    expect(result.fifoGap?.absolute).toBe(0)
     expect(result.executionAuthorized).toBe(false)
+  })
+
+
+  it('matches the real two-task Forge-to-QA laboratory at budgets two and three', () => {
+    const input = scenario()
+    input.document.intelligence!.plans[0]!.tasks =
+      input.document.intelligence!.plans[0]!.tasks.slice(0, 2)
+    input.estimates = [
+      { id: 'forge-lab-01', estimatedEffort: 2,
+        criteria: { user: 70, unlock: 50, urgency: 30 } },
+      { id: 'qa-lab-01', estimatedEffort: 1,
+        criteria: { user: 90, unlock: 80, urgency: 60 } }
+    ]
+    input.budget = 2
+    const restricted = simulateProjectHubMath(input)
+    expect(restricted.exact?.selectedIds).toEqual(['forge-lab-01'])
+    expect(restricted.exact?.totalEffort).toBe(2)
+    expect(restricted.exact?.totalValue).toBeCloseTo(56)
+    expect(restricted.exact?.feasibleSubsets).toBe(2)
+    expect(restricted.executionAuthorized).toBe(false)
+
+    input.budget = 3
+    const complete = simulateProjectHubMath(input)
+    expect(complete.exact?.selectedIds).toEqual(['forge-lab-01', 'qa-lab-01'])
+    expect(complete.exact?.totalEffort).toBe(3)
+    expect(complete.exact?.totalValue).toBeCloseTo(137)
+    expect(complete.valuePerEffortGap?.absolute).toBe(0)
+    expect(complete.fifoGap?.absolute).toBe(0)
+  })
+
+  it('prefers lower effort in an exact-value tie and handles zero value/budget', () => {
+    const input = scenario()
+    input.document.intelligence!.plans[0]!.tasks[1]!.dependsOn = []
+    input.estimates = [
+      { id: 'forge-lab-01', estimatedEffort: 2,
+        criteria: { user: 50, unlock: 50, urgency: 50 } },
+      { id: 'qa-lab-01', estimatedEffort: 1,
+        criteria: { user: 50, unlock: 50, urgency: 50 } },
+      { id: 'data-lab-01', estimatedEffort: 1,
+        criteria: { user: 0, unlock: 0, urgency: 0 } }
+    ]
+    input.budget = 2
+    const tied = simulateProjectHubMath(input)
+    expect(tied.exact?.selectedIds).toEqual(['qa-lab-01'])
+    expect(tied.exact?.totalValue).toBeCloseTo(50)
+    expect(tied.exact?.totalEffort).toBe(1)
+
+    input.budget = 0
+    const empty = simulateProjectHubMath(input)
+    expect(empty.exact?.selectedIds).toEqual([])
+    expect(empty.exact?.totalValue).toBe(0)
+    expect(empty.valuePerEffortGap?.percent).toBe(0)
+  })
+
+  it('omits exact enumeration beyond twelve tasks but keeps both heuristics', () => {
+    const input = scenario()
+    input.document.intelligence!.plans[0]!.tasks = Array.from({ length: 13 }, (_, i) => ({
+      id: 'task-' + i, title: 'Synthetic task number ' + i,
+      role: 'data' as const, dependsOn: [], acceptance: 'Auditable synthetic outcome'
+    }))
+    input.estimates = input.document.intelligence!.plans[0]!.tasks.map(task => ({
+      id: task.id, estimatedEffort: 1,
+      criteria: { user: 50, unlock: 50, urgency: 50 }
+    }))
+    input.budget = 5
+    const computed = simulateProjectHubMath(input)
+    expect(computed.exact).toBeNull()
+    expect(computed.exactTaskLimit).toBe(12)
+    expect(computed.fifoGap).toBeNull()
+    expect(computed.valuePerEffortGap).toBeNull()
+    expect(computed.valuePerEffort.selectedIds).toHaveLength(5)
+    expect(computed.executionAuthorized).toBe(false)
+  })
+
+  it('evaluates at most 4096 subsets for a twelve-task independent DAG', () => {
+    const input = scenario()
+    input.document.intelligence!.plans[0]!.tasks = Array.from({ length: 12 }, (_, i) => ({
+      id: 'task-' + i, title: 'Synthetic task number ' + i,
+      role: 'data' as const, dependsOn: [], acceptance: 'Auditable synthetic outcome'
+    }))
+    input.estimates = input.document.intelligence!.plans[0]!.tasks.map(task => ({
+      id: task.id, estimatedEffort: 1,
+      criteria: { user: 10, unlock: 10, urgency: 10 }
+    }))
+    input.budget = 6
+    const computed = simulateProjectHubMath(input)
+    expect(computed.exact?.evaluatedSubsets).toBe(4096)
+    expect(computed.exact?.selectedIds).toHaveLength(6)
+    expect(computed.exact?.totalValue).toBeCloseTo(60)
+    expect(computed.exact?.totalEffort).toBe(6)
   })
 
   it('rejects a cyclic DAG before producing scores or admitting work', () => {
