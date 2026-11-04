@@ -226,7 +226,7 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
   it('omits exact enumeration beyond twelve tasks but keeps both heuristics', () => {
     const input = scenario()
     input.document.intelligence!.plans[0]!.tasks = Array.from({ length: 13 }, (_, i) => ({
-      id: 'task-' + i, title: 'Synthetic task number ' + i,
+      id: `task-${i}`, title: `Synthetic task number ${i}`,
       role: 'data' as const, dependsOn: [], acceptance: 'Auditable synthetic outcome'
     }))
     input.estimates = input.document.intelligence!.plans[0]!.tasks.map(task => ({
@@ -246,7 +246,7 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
   it('evaluates at most 4096 subsets for a twelve-task independent DAG', () => {
     const input = scenario()
     input.document.intelligence!.plans[0]!.tasks = Array.from({ length: 12 }, (_, i) => ({
-      id: 'task-' + i, title: 'Synthetic task number ' + i,
+      id: `task-${i}`, title: `Synthetic task number ${i}`,
       role: 'data' as const, dependsOn: [], acceptance: 'Auditable synthetic outcome'
     }))
     input.estimates = input.document.intelligence!.plans[0]!.tasks.map(task => ({
