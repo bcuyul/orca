@@ -104,6 +104,16 @@ describe('Project Hub assisted manual Git handoff', () => {
     fireEvent.click(screen.getByRole('button', { name: /Leer SHA base desde Git local/ }))
     await waitFor(() => expect(screen.getByText(/Inspección Git no disponible/)).toBeInTheDocument())
     expect(screen.getByRole('textbox', { name: 'SHA base de Forge' })).toHaveValue('')
+    // A failed assisted refresh must not discard data deliberately entered by a person.
+    fireEvent.change(screen.getByRole('textbox', { name: 'SHA base de Forge' }), {
+      target: { value: BASE }
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'SHA de entrega Forge' }), {
+      target: { value: HEAD }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Leer entrega desde Git local/ }))
+    await waitFor(() => expect(status).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('textbox', { name: 'SHA de entrega Forge' })).toHaveValue(HEAD)
     rerender(<ProjectHubHandoffPanel doc={document()} busy={false} onSave={save}
       gitContext={{ ...local, hostId: 'remote' }}/>)
     expect(screen.getByRole('button', { name: /Leer SHA base desde Git local/ })).toBeDisabled()
