@@ -75,7 +75,8 @@ export default function ProjectHubHandoffPanel({
   const canHandoff = readiness?.approvedByHuman === true &&
     !!task && workingRoles.has(task.role) &&
     readiness.tasks.find(t => t.id === taskId)?.stage !== 'blocked'
-  const canRecord = canHandoff && !busy && (state.implementations?.length ?? 0) < 100 &&
+  const canRecord = canHandoff && !busy && !readingGit &&
+    (state.implementations?.length ?? 0) < 100 &&
     actor.trim().length >= 5 && actor.length <= 80 &&
     sha.test(baseSha) && sha.test(headSha) && evidenceRef.trim().length >= 5 &&
     testSummary.trim().length >= 5
@@ -133,6 +134,11 @@ export default function ProjectHubHandoffPanel({
         setNotice('Entrega identificada en Git local. Falta confirmar diff, pruebas y QA de forma independiente.')
       }
     } catch (reason) {
+      // Never leave an older captured delivery presented as a fresh observation.
+      if (target === 'delivery') {
+        setHeadSha('')
+        setEvidenceRef('')
+      }
       setNotice(`Inspección Git no disponible: ${String(reason)}`)
     } finally {
       setReadingGit(false)
@@ -175,7 +181,7 @@ export default function ProjectHubHandoffPanel({
       ejecución automática, autenticación de agentes ni validación remota de CI.</p>
     <label className="block">Plan de Atlas para entregar
       <select className={field} aria-label="Plan para entrega Forge" value={planId}
-        onChange={e=>{setPlanId(e.target.value);setTaskId('');setReviewReportId('')}} disabled={busy}>
+        onChange={e=>{setPlanId(e.target.value);setTaskId('');setReviewReportId('')}} disabled={busy || readingGit}>
         <option value="">Seleccionar plan</option>
         {state.plans.map(p=><option value={p.id} key={p.id}>{p.objective.slice(0,85)}</option>)}
       </select>
@@ -191,7 +197,7 @@ export default function ProjectHubHandoffPanel({
     </div>}
     <label className="block">Tarea de Forge/Flow/Data
       <select className={field} aria-label="Tarea para entrega Forge" value={taskId}
-        disabled={busy || !readiness?.approvedByHuman}
+        disabled={busy || readingGit || !readiness?.approvedByHuman}
         onChange={e=>{setTaskId(e.target.value);setReviewReportId('')}}>
         <option value="">Seleccionar tarea</option>
         {plan?.tasks.filter(t=>workingRoles.has(t.role)).map(t=><option key={t.id} value={t.id}>{t.id} · {t.title}</option>)}
