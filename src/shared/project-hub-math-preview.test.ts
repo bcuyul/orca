@@ -62,6 +62,26 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
     expect(JSON.stringify(input)).toBe(frozen)
   })
 
+  it('does not spend even an epsilon above the budget (hard safety constraint)', () => {
+    const zeroBudget = scenario()
+    zeroBudget.budget = 0
+    zeroBudget.estimates[0]!.estimatedEffort = 1e-12
+    const result = simulateProjectHubMath(zeroBudget)
+    expect(result.fifo.selectedIds).toEqual([])
+    expect(result.valuePerEffort.selectedIds).toEqual([])
+    expect(result.valuePerEffort.totalEffort).toBe(0)
+
+    const nearBoundary = scenario()
+    nearBoundary.budget = 1
+    nearBoundary.estimates[0]!.estimatedEffort = 1 + 1e-10
+    nearBoundary.estimates[1]!.estimatedEffort = 2
+    nearBoundary.estimates[2]!.estimatedEffort = 2
+    const guarded = simulateProjectHubMath(nearBoundary)
+    expect(guarded.fifo.totalEffort).toBeLessThanOrEqual(nearBoundary.budget)
+    expect(guarded.valuePerEffort.totalEffort).toBeLessThanOrEqual(nearBoundary.budget)
+    expect(guarded.valuePerEffort.selectedIds).toEqual([])
+  })
+
   it('rejects over-budget dependent closure, but may select a cheaper independent item', () => {
     const input = scenario()
     input.budget = 1
