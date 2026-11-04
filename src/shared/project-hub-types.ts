@@ -1,6 +1,7 @@
 /** Project Hub data is keyed by an Orca Project, never by a disposable worktree. */
 import { isHubDelegationList, type HubDelegation } from './project-hub-delegation'
 import { isHubIntelligence, type HubIntelligence } from './project-hub-intelligence'
+import { isHubTaskLinkHistory, type HubTaskLinkEvent } from './project-hub-backlog-links'
 export const PROJECT_HUB_PHASES = [
   'Descubrimiento del problema', 'Investigación, stack e infraestructura',
   'Desarrollo de arquitectura', 'MVP', 'Primera validación',
@@ -21,6 +22,8 @@ export type HubDocument = {
   delegations?: HubDelegation[]
   /** Audited suggestions only; never an executable orchestration Run. */
   intelligence?: HubIntelligence
+  /** Audit-only story/task associations; not proof of execution or status. */
+  taskLinks?: HubTaskLinkEvent[]
   approvals: { from: number; to: number; note: string; at: string }[]
   /** Evidence is explicitly user-attested; never inferred from disconnected CI. */
   qualityEvidence?: Record<string, { status: 'verified'|'not-applicable'; note: string; at: string }>
@@ -72,6 +75,7 @@ export function isHubDocument(d: unknown): d is HubDocument {
   }
   if(d.delegations!==undefined && !isHubDelegationList(d.delegations,ids)) { return false }
   if(d.intelligence!==undefined && !isHubIntelligence(d.intelligence)) { return false }
+  if(!isHubTaskLinkHistory(d as HubDocument)) { return false }
   let last=1
   for (const approval of d.approvals) {
     if (!isRecord(approval)||!phase(approval.from)||!phase(approval.to)||

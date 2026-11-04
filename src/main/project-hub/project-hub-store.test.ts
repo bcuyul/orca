@@ -146,6 +146,40 @@ describe('ProjectHubStore',()=>{
     expect(after.revision).toBe(2)
     expect(after.intelligence?.plans[0].rationale).toBe(plan.rationale)
   })
+  it('stores story-task associations as immutable append-only audit events', () => {
+    const db = new ProjectHubStore(root)
+    const id = 'repo:story-task-audit'
+    const doc = emptyProjectHub(id)
+    doc.items = [{ id: 'PH-001', title: 'Atlas traceability',
+      type: 'story', status: 'ready', phase: 1,
+      source: 'local', acceptance: 'Trace the task without status inference', description: '' }]
+    doc.intelligence = {
+      plans: [{ id: 'plan-lab', objective: 'Link story to reviewed DAG',
+        rationale: 'Explicit human-reviewed association',
+        source: 'human', createdAt: new Date().toISOString(),
+        tasks: [{ id: 'forge-lab', title: 'Create README proof',
+          role: 'forge', dependsOn: [], acceptance: 'Evidence is inspected' }] }],
+      blockers: [], memories: [], reviews: [],
+      decisions: [{ id: 'decision-lab', subject: 'plan', subjectId: 'plan-lab',
+        verdict: 'accepted', justification: 'Human accepted the DAG',
+        createdAt: new Date().toISOString() }]
+    }
+    const saved = db.save(id, doc, 0)
+    const event = { id: 'link-first', planId: 'plan-lab', taskId: 'forge-lab',
+      storyId: 'PH-001', at: new Date().toISOString() }
+    const linked = db.save(id, { ...saved, taskLinks: [event] }, 1)
+    expect(db.read(id).taskLinks).toEqual([event])
+    expect(db.read(id).items[0]?.status).toBe('ready')
+    expect(() => db.save(id, { ...linked, taskLinks: [] }, 2)).toThrow(/append-only/)
+    expect(() => db.save(id, { ...linked,
+      taskLinks: [{ ...event, at: '2026-11-01T00:00:00Z' }] }, 2)).toThrow(/append-only/)
+    expect(db.read(id).revision).toBe(2)
+    const corrected = db.save(id, { ...linked,
+      taskLinks: [...linked.taskLinks!, { ...event, id: 'link-unlink', storyId: null }] }, 2)
+    expect(corrected.taskLinks).toHaveLength(2)
+    expect(corrected.items[0]?.status).toBe('ready')
+  })
+
   it('fails closed if existing JSON is corrupted',()=>{
     const store=new ProjectHubStore(root)
     const path=hubFilePath(root,'repo:one')

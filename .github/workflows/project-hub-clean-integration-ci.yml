@@ -89,6 +89,7 @@ jobs:
             src/main/runtime/rpc/methods/agent-launch.ts \
             src/main/runtime/rpc/methods/agent-launch-replay.test.ts \
             src/renderer/src/components/right-sidebar/ProjectHubDelegationRunner.tsx \
+            src/renderer/src/components/right-sidebar/ProjectHubTaskLinks.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubPanel.tsx \
             src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
       - name: Run Project Hub, Adaptive and Coordinator regression tests
@@ -105,8 +106,11 @@ jobs:
             src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts \
             src/shared/secure-file.test.ts \
             src/shared/secure-file-windows.test.ts
-      - name: Exercise Project Hub mathematical scenario form
-        run: pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/components/right-sidebar/ProjectHubMathPreview.test.tsx
+      - name: Exercise Project Hub decision and linking forms
+        run: |
+          pnpm exec vitest run --config config/vitest.config.ts \
+            src/renderer/src/components/right-sidebar/ProjectHubMathPreview.test.tsx \
+            src/renderer/src/components/right-sidebar/ProjectHubTaskLinks.test.tsx
       - name: Whole workspace typecheck
         run: pnpm typecheck
 

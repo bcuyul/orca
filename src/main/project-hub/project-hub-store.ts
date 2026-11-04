@@ -5,6 +5,7 @@ import { writeSecureFile } from '../../shared/secure-file'
 import { emptyProjectHub, isHubDocument, hasHubPhaseEvidence, type HubDocument } from '../../shared/project-hub-types'
 import { isHubDelegationTransition } from '../../shared/project-hub-delegation'
 import { isHubIntelligenceTransition } from '../../shared/project-hub-intelligence'
+import { isHubTaskLinkTransition } from '../../shared/project-hub-backlog-links'
 
 const LIMIT = 512 * 1024
 export function hubFilePath(root: string, projectId: string): string {
@@ -44,6 +45,9 @@ export class ProjectHubStore {
       throw new Error('Delegation launch state requires host-verified evidence')
     }
     if(!isHubIntelligenceTransition(prev.intelligence,incoming.intelligence)) { throw new Error('Intelligence evidence is append-only: revisions require new records') }
+    if (!isHubTaskLinkTransition(prev.taskLinks, incoming.taskLinks)) {
+      throw new Error('Backlog-to-DAG link history is append-only')
+    }
     // Approvals are append-only; phase changes require a gate and one matching record.
     if (JSON.stringify(incoming.approvals.slice(0,prev.approvals.length))!==JSON.stringify(prev.approvals)) { throw new Error('Approval history cannot be rewritten') }
     // Once a phase is approved, its evidence is locked to that audit record.
