@@ -17,6 +17,7 @@ export default function ProjectHubNativeAgentPreview({
 }: Props): React.JSX.Element {
   const inventories = useAppStore(state => state.localDetectedAgentIdsByContext)
   const detecting = useAppStore(state => state.isDetectingLocalAgentsByContext)
+  const refreshing = useAppStore(state => state.isRefreshingLocalAgentsByContext)
   const disabled = useAppStore(state => state.settings?.disabledTuiAgents)
   const local = hostId === 'local' && Boolean(worktreeId)
 
@@ -29,7 +30,7 @@ export default function ProjectHubNativeAgentPreview({
   const inventory = useMemo(() => local
     ? useAppStore.getState().readLocalAgentInventory(worktreeId)
     : { ids: null, state: 'pending' as const },
-  [local, worktreeId, inventories, detecting])
+  [local, worktreeId, inventories, detecting, refreshing])
   const status: NativeAgentInventoryStatus = local
     ? inventory.state : 'unsupported-host'
   const preview = useMemo(() =>
