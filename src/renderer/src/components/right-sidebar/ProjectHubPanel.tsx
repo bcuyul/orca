@@ -6,6 +6,7 @@ import ProjectHubIntelligencePanel from './ProjectHubIntelligencePanel'
 import ProjectHubOverview from './ProjectHubOverview'
 import ProjectHubNativeAgentPreview from './ProjectHubNativeAgentPreview'
 import ProjectHubMathPreview from './ProjectHubMathPreview'
+import ProjectHubTaskLinks from './ProjectHubTaskLinks'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
@@ -129,6 +130,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
               </div>)}
             {!shown.items.some(i=>i.status===status)&&<p className="text-xs text-muted-foreground">Sin elementos</p>}
           </div>)}</div>
+        <ProjectHubTaskLinks doc={shown} busy={busy} onSave={save}/>
         <div className="rounded-lg border border-border bg-card p-3">
           <h3 className="mb-2 flex items-center gap-2 text-sm font-medium"><Plus className="h-4 w-4"/> Crear historia</h3>
           <input value={itemTitle} onChange={e=>setItemTitle(e.target.value)} maxLength={160}
