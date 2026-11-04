@@ -37,6 +37,21 @@ describe('Project Hub backlog to DAG linkage form', () => {
     expect(screen.queryByRole('button', { name: /Registrar vínculo/ })).toBeNull()
   })
 
+  it('shows only explicit story evidence and keeps status human-controlled', () => {
+    const doc = docForLab()
+    doc.taskLinks = [{
+      id: 'link-ui', planId: 'plan-ui', taskId: 'forge-ui',
+      storyId: 'PH-001', at: '2026-11-04T12:02:00Z'
+    }]
+    render(<ProjectHubTaskLinks doc={doc} busy={false} onSave={vi.fn(async () => true)} />)
+    const panel = screen.getByLabelText('Evidencia por historia (solo lectura)')
+    expect(panel).toHaveTextContent(/PH-001: 1 vinculadas/)
+    expect(panel).toHaveTextContent(/1 planificadas\/sin verificar/)
+    expect(panel).toHaveTextContent(/Backlog manual: ready/)
+    expect(panel).toHaveTextContent(/no actualizan los estados del Backlog/)
+    expect(doc.items[0]?.status).toBe('ready')
+  })
+
   it('records a user-selected audited story link without modifying backlog state', async () => {
     const doc = docForLab()
     const saved = vi.fn(async (_next: HubDocument) => true)
