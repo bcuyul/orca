@@ -68,7 +68,7 @@ function greedyBudget(
     const incrementalEffort = [...closure].reduce(
       (sum, candidateId) => sum + (effort.get(candidateId) ?? 0), 0
     )
-    if (incrementalEffort <= budget - totalEffort + 1e-9) {
+    if (totalEffort + incrementalEffort <= budget) {
       for (const candidateId of closure) { selected.add(candidateId) }
       totalEffort += incrementalEffort
     }
