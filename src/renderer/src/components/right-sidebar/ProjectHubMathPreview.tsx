@@ -91,7 +91,8 @@ export default function ProjectHubMathPreview({ doc }: Props): React.JSX.Element
     </summary>
     <p className="mt-2 text-muted-foreground">
       Usa criterios estimados por una persona. No se generan probabilidades, pesos
-      automáticos, Cost of Delay ni permisos. La selección es una heurística, no un óptimo.
+      automáticos, Cost of Delay ni permisos. FIFO y MCDA/esfuerzo son heurísticas;
+      el óptimo exacto compara solo el modelo aditivo cuando el DAG es pequeño.
     </p>
     {!plan ? <p className="mt-2">Aprueba manualmente un plan de Atlas para realizar la simulación.</p> :
       <div className="mt-3 space-y-3">
@@ -169,6 +170,28 @@ export default function ProjectHubMathPreview({ doc }: Props): React.JSX.Element
               {' '}· esfuerzo {selection.totalEffort.toFixed(2)}
               {' '}· valor aditivo {selection.totalValue.toFixed(2)}
             </p>)}
+          {result.exact ? <div className="space-y-1 rounded border border-border p-2"
+            aria-label="Comparación con óptimo exacto">
+            <p className="font-semibold">
+              Óptimo exacto del modelo aditivo ({result.exact.evaluatedSubsets} subconjuntos)
+            </p>
+            <p>Selección: {result.exact.selectedIds.join(' → ') || 'Sin selección'}
+              {' '}· esfuerzo {result.exact.totalEffort.toFixed(2)}
+              {' '}· valor {result.exact.totalValue.toFixed(2)}
+            </p>
+            <p>Brecha MCDA/esfuerzo: {result.valuePerEffortGap?.absolute.toFixed(2)}
+              {' '}({result.valuePerEffortGap?.percent.toFixed(2)}%)
+              {' '}· Brecha FIFO: {result.fifoGap?.absolute.toFixed(2)}
+              {' '}({result.fifoGap?.percent.toFixed(2)}%)
+            </p>
+            <p className="text-muted-foreground">
+              Óptimo solo bajo valor aditivo, esfuerzo y precedencias introducidos.
+              No optimiza tiempos, concurrencia, permisos ni probabilidad de éxito.
+            </p>
+          </div> : <p className="text-muted-foreground">
+            Comparación exacta omitida: el DAG supera {result.exactTaskLimit} tareas.
+            FIFO y MCDA/esfuerzo siguen siendo heurísticas.
+          </p>}
           <p role="status" className="font-medium text-muted-foreground">
             No se admite ninguna tarea a ejecución: faltan permisos, evidencia del host,
             presupuesto real reservado, dependencias terminadas y sandbox verificable.

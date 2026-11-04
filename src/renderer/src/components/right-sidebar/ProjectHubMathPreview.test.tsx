@@ -66,8 +66,39 @@ describe('Project Hub mathematical scenario UI', () => {
     setValue('forge-ui-01 Esfuerzo', '1')
     fireEvent.click(calculate)
     expect(screen.getByText(/Resultado matemático del escenario/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Comparación con óptimo exacto'))
+      .toHaveTextContent(/Óptimo exacto del modelo aditivo/)
     expect(screen.getByText(/No se admite ninguna tarea a ejecución/)).toBeInTheDocument()
     expect(JSON.stringify(doc)).toBe(before)
+  })
+
+
+  it('explains an observable 40-point greedy gap without granting execution', () => {
+    const doc = acceptedDocument()
+    doc.intelligence!.plans[0]!.tasks.push({
+      id: 'qa-ui-01', title: 'Synthetic independent verification', role: 'qa',
+      dependsOn: [], acceptance: 'Inspect independent evidence'
+    })
+    render(<ProjectHubMathPreview doc={doc}/>)
+    expand()
+    setValue('Swing Valor usuario (0–100)', '100')
+    setValue('Swing Desbloqueo (0–100)', '0')
+    setValue('Swing Urgencia (0–100)', '0')
+    setValue('Presupuesto de esfuerzo', '2')
+    setValue('forge-ui-01 Valor usuario', '100')
+    setValue('forge-ui-01 Desbloqueo', '0')
+    setValue('forge-ui-01 Urgencia', '0')
+    setValue('forge-ui-01 Esfuerzo', '2')
+    setValue('qa-ui-01 Valor usuario', '60')
+    setValue('qa-ui-01 Desbloqueo', '0')
+    setValue('qa-ui-01 Urgencia', '0')
+    setValue('qa-ui-01 Esfuerzo', '1')
+    fireEvent.click(screen.getByRole('button', { name: /Calcular escenario/ }))
+    const exact = screen.getByLabelText('Comparación con óptimo exacto')
+    expect(exact).toHaveTextContent(/valor 100.00/)
+    expect(exact).toHaveTextContent(/Brecha MCDA\/esfuerzo: 40.00/)
+    expect(exact).toHaveTextContent(/40.00%/)
+    expect(screen.getByText(/No se admite ninguna tarea a ejecución/)).toBeInTheDocument()
   })
 
   it('does not leak scenario inputs across projects', () => {
