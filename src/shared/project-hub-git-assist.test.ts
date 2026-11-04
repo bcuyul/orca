@@ -41,6 +41,8 @@ describe('Project Hub read-only local Git assist', () => {
       history())).toThrow(/limpio/)
     expect(() => projectHubLocalGitSnapshot({ ...status(), didHitLimit: true },
       history())).toThrow(/limpio/)
+    expect(() => projectHubLocalGitSnapshot({ ...status(), conflictOperation: 'rebase' },
+      history())).toThrow(/limpio/)
     expect(() => projectHubLocalGitSnapshot(status(),
       { ...history(), items: [] })).toThrow(/HEAD/)
   })
