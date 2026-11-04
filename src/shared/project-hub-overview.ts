@@ -92,8 +92,7 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
     add({
       id: report.id, kind: 'implementation', at: report.createdAt,
       title: 'Entrega externa declarada',
-      description: `${report.taskId} · ${report.headSha.slice(0, 12)}` +
-        (report.previousImplementationId ? ' · nueva versión' : ''),
+      description: `${report.taskId} · ${report.headSha.slice(0, 12)}${report.previousImplementationId ? ' · nueva versión' : ''}`,
       provenance: 'external-unverified'
     })
   }
@@ -128,7 +127,10 @@ export function projectHubOverview(doc: HubDocument): HubOverview {
       qaAttested: readiness.qaAttested,
       blocked: readiness.blocked
     } : null,
-    recentActivity: activity.slice(0, 8).map(({ order: _order, ...event }) => event),
+    recentActivity: activity.slice(0, 8).map(event => ({
+      id: event.id, kind: event.kind, title: event.title,
+      description: event.description, at: event.at, provenance: event.provenance
+    })),
     executionAuthorized: false,
     ciVerifiedByThisProjection: false
   }
