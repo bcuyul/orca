@@ -118,6 +118,34 @@ describe('Project Hub mathematical decision preview (never dispatch)', () => {
     expect(Object.keys(simulateProjectHubMath(input))).not.toContain('successProbability')
   })
 
+  it('does not claim an optimal allocation when value/effort greedy loses to FIFO', () => {
+    const input = scenario()
+    // Synthetic counterexample: take a tiny high-ratio item first, preventing
+    // the higher-value whole-budget task; this is a ranking heuristic, not ILP.
+    input.document.intelligence!.plans[0]!.tasks[1]!.dependsOn = []
+    input.estimates = [
+      { id: 'forge-lab-01', estimatedEffort: 2,
+        criteria: { user: 100, unlock: 100, urgency: 100 } },
+      { id: 'qa-lab-01', estimatedEffort: 1,
+        criteria: { user: 60, unlock: 60, urgency: 60 } },
+      { id: 'data-lab-01', estimatedEffort: 1,
+        criteria: { user: 0, unlock: 0, urgency: 0 } }
+    ]
+    input.budget = 2
+    const result = simulateProjectHubMath(input)
+    expect(result.valuePerEffort.selectedIds).toEqual(['qa-lab-01', 'data-lab-01'])
+    expect(result.valuePerEffort.totalValue).toBeCloseTo(60)
+    expect(result.fifo.selectedIds).toEqual(['forge-lab-01'])
+    expect(result.fifo.totalValue).toBeCloseTo(100)
+    expect(result.executionAuthorized).toBe(false)
+  })
+
+  it('rejects a cyclic DAG before producing scores or admitting work', () => {
+    const input = scenario()
+    input.document.intelligence!.plans[0]!.tasks[0]!.dependsOn = ['qa-lab-01']
+    expect(() => simulateProjectHubMath(input)).toThrow(/válido/)
+  })
+
   it('never confuses a budget-feasible set with authenticated execution eligibility', () => {
     const result = simulateProjectHubMath(scenario())
     expect(result.executionAuthorized).toBe(false)
