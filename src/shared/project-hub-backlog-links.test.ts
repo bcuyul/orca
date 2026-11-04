@@ -89,6 +89,13 @@ describe('Project Hub explicit backlog-DAG linkage', () => {
       doc.taskLinks = [forged]
       expect(isHubDocument(doc)).toBe(false)
     }
+    for (const malformed of [
+      { ...link('valid-id', 'forge-lab', 'PH-001'), id: 42 },
+      { ...link('valid-id', 'forge-lab', 'PH-001'), planId: 42 },
+      { ...link('valid-id', 'forge-lab', 'PH-001'), taskId: 42 }
+    ]) {
+      expect(isHubDocument({ ...doc, taskLinks: [malformed] })).toBe(false)
+    }
     doc.taskLinks = [link('same-id', 'forge-lab', 'PH-001'),
       link('same-id', 'qa-lab', 'PH-001')]
     expect(isHubDocument(doc)).toBe(false)
