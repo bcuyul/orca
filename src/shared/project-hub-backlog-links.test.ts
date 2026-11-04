@@ -3,6 +3,7 @@ import { emptyProjectHub, isHubDocument } from './project-hub-types'
 import { emptyHubIntelligence } from './project-hub-intelligence'
 import {
   isHubTaskLinkHistory, isHubTaskLinkTransition, projectHubBacklogLinks,
+  projectHubStoryEvidence,
   type HubTaskLinkEvent
 } from './project-hub-backlog-links'
 
@@ -59,6 +60,68 @@ describe('Project Hub explicit backlog-DAG linkage', () => {
     expect(doc.items[0]?.status).toBe('ready')
     expect(mapped.executionAuthorized).toBe(false)
     expect(JSON.stringify(scenario())).toBe(snapshot)
+  })
+
+  it('aggregates evidence without changing a manually Ready story or confusing QA plans with execution', () => {
+    const doc = scenario()
+    doc.taskLinks = [link('link-forge', 'forge-lab', 'PH-001'),
+      link('link-qa', 'qa-lab', 'PH-001')]
+    const original = JSON.stringify(doc)
+    const pending = projectHubStoryEvidence(doc)
+    expect(pending.stories[0]).toMatchObject({
+      backlogStatus: 'ready', linkedTaskCount: 2,
+      plannedOrUnverifiedCount: 2, awaitingQaCount: 0,
+      qaApprovedDeclaredCount: 0, blockedOrCorrectionsCount: 0
+    })
+    expect(JSON.stringify(doc)).toBe(original)
+
+    const implementation = {
+      id: 'impl-v1', planId: 'plan-lab', taskId: 'forge-lab',
+      executor: 'external-unverified' as const, executorLabel: 'Forge CLI',
+      baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40),
+      evidenceRef: 'Declared Git diff, not verified',
+      testSummary: 'Declared tests only', createdAt: at
+    }
+    doc.intelligence!.implementations = [implementation]
+    expect(projectHubStoryEvidence(doc).stories[0]).toMatchObject({
+      plannedOrUnverifiedCount: 1, awaitingQaCount: 1, qaApprovedDeclaredCount: 0
+    })
+    doc.intelligence!.reviews.push({
+      id: 'review-v1', planId: 'plan-lab', taskId: 'forge-lab',
+      reviewer: 'qa', verdict: 'approved', implementationId: 'impl-v1',
+      reviewerLabel: 'Independent QA',
+      evidenceRef: 'Manual diff review, unverified',
+      findings: 'Declared approval only, no verified host receipt',
+      createdAt: at
+    })
+    expect(projectHubStoryEvidence(doc).stories[0]).toMatchObject({
+      backlogStatus: 'ready', linkedTaskCount: 2,
+      plannedOrUnverifiedCount: 1, qaApprovedDeclaredCount: 1, awaitingQaCount: 0
+    })
+
+    doc.intelligence!.implementations.push({
+      ...implementation, id: 'impl-v2', baseSha: 'b'.repeat(40),
+      headSha: 'c'.repeat(40), previousImplementationId: 'impl-v1'
+    })
+    expect(projectHubStoryEvidence(doc).stories[0]).toMatchObject({
+      qaApprovedDeclaredCount: 0, awaitingQaCount: 1
+    })
+    expect(doc.items[0]?.status).toBe('ready')
+    expect(projectHubStoryEvidence(doc).autoStatusSync).toBe(false)
+    expect(projectHubStoryEvidence(doc).executionAuthorized).toBe(false)
+  })
+
+  it('never mixes another story or an old plan into the current story summary', () => {
+    const doc = scenario()
+    doc.items.push({ ...doc.items[0]!, id: 'PH-002', title: 'Separate story' })
+    doc.taskLinks = [
+      link('link-first', 'forge-lab', 'PH-001'),
+      link('link-reassign', 'forge-lab', 'PH-002')
+    ]
+    const output = projectHubStoryEvidence(doc)
+    expect(output.stories.find(row => row.storyId === 'PH-001')?.linkedTaskCount).toBe(0)
+    expect(output.stories.find(row => row.storyId === 'PH-002')?.linkedTaskCount).toBe(1)
+    expect(output.unlinkedTaskCount).toBe(1)
   })
 
   it('supports audited correction and unlink without rewriting old evidence', () => {

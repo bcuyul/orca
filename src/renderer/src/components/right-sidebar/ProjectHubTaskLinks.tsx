@@ -1,7 +1,7 @@
 /** Explicit human-authored backlog <-> DAG links. No execution or status changes. */
 import { useMemo, useState } from 'react'
 import type { HubDocument } from '../../../../shared/project-hub-types'
-import { projectHubBacklogLinks, type HubTaskLinkEvent } from '../../../../shared/project-hub-backlog-links'
+import { projectHubBacklogLinks, projectHubStoryEvidence, type HubTaskLinkEvent } from '../../../../shared/project-hub-backlog-links'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 
 type Props = {
@@ -20,6 +20,7 @@ function newLinkEvent(planId: string, taskId: string, storyId: string): HubTaskL
 
 export default function ProjectHubTaskLinks({ doc, busy, onSave }: Props): React.JSX.Element {
   const preview = useMemo(() => projectHubBacklogLinks(doc), [doc])
+  const evidence = useMemo(() => projectHubStoryEvidence(doc), [doc])
   const [draft, setDraft] = useState<Record<string, string>>({})
   const stories = doc.items.filter(item => item.type === 'story')
   const current = preview.tasks.map(task => ({
@@ -49,6 +50,24 @@ export default function ProjectHubTaskLinks({ doc, busy, onSave }: Props): React
     {!preview.approvedPlanId ? <p>Aprueba un plan de Atlas para vincular tareas.</p> :
       <div className="space-y-2">
         <p>Plan aprobado: {preview.approvedPlanId} · {preview.unlinkedTaskCount} tareas sin historia</p>
+        <div aria-label="Evidencia por historia (solo lectura)"
+          className="space-y-1 rounded border border-border p-2">
+          <p className="font-medium">Proyección de evidencias por historia</p>
+          {evidence.stories.filter(story => story.linkedTaskCount > 0).map(story =>
+            <p key={story.storyId} className="break-words text-muted-foreground">
+              {story.storyId}: {story.linkedTaskCount} vinculadas ·
+              {' '}{story.plannedOrUnverifiedCount} planificadas/sin verificar ·
+              {' '}{story.awaitingQaCount} en espera de QA ·
+              {' '}{story.qaApprovedDeclaredCount} QA aprobado (declarado) ·
+              {' '}{story.blockedOrCorrectionsCount} bloqueadas/con correcciones ·
+              {' '}Backlog manual: {story.backlogStatus}
+            </p>)}
+          {!evidence.stories.some(story => story.linkedTaskCount > 0) &&
+            <p className="text-muted-foreground">Aún no hay tareas vinculadas.</p>}
+          <p className="text-muted-foreground">
+            Los recuentos no son comprobaciones de CI y no actualizan los estados del Backlog.
+          </p>
+        </div>
         {current.map(task => <div key={task.id} className="rounded border border-border p-2">
           <p className="font-medium">{task.id} · {task.title} ({task.role})</p>
           <p className="mb-2 text-muted-foreground">
