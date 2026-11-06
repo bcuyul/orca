@@ -65,7 +65,7 @@ export default function ProjectHubHandoffPanel({
   const task = plan?.tasks.find(t => t.id === taskId)
   const readiness = useMemo(
     () => plan ? projectHubHandoffReadiness(state, plan.id) : null,
-    [state, plan?.id]
+    [state, plan]
   )
   // Only one selected plan and a maximum of 20 tasks are rendered, not all
   // 30×20 possible cards on every keystroke.

@@ -17,6 +17,7 @@ Este cambio está apilado sobre el PR #31; no debe fusionarse de manera independ
 - No llama a rutas de reparación ni reveal con posibles efectos secundarios.
 - No hay persistencia del vínculo en ProjectHubStore; requiere recibos de host con generación y fencing antes de habilitarla.
 - Las respuestas visibility-unknown o tardías no disparan reintentos.
+- Un resultado incierto deshabilita nuevos lanzamientos dentro del panel y, si se conoce sessionId, ofrece solo conciliación de lectura antes de navegar. La pérdida del panel no sustituye reconciliación host durable.
 - Local-only: nunca asumir identidad de un host remoto.
 - El envío automático supervisado queda bloqueado hasta integrar permisos host-only, saga idempotente y presupuesto.
 

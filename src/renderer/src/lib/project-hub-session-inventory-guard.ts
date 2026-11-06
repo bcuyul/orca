@@ -57,7 +57,7 @@ export function reconcileHubSessionInventory(
   }
   const tab = hits[0]!.tab
   if (tab.type !== 'agent-session' || tab.agent !== request.agent ||
-    tab.id !== 'agent-session:' + request.sessionId) {
+    tab.id !== `agent-session:${request.sessionId}`) {
     return deny('The host reports a different agent')
   }
   return {

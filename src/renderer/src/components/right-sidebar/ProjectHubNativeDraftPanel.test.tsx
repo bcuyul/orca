@@ -175,4 +175,52 @@ describe('Project Hub native draft launch', () => {
     expect(mocks.activateSession).not.toHaveBeenCalled()
   })
 
+  it('blocks a second launch when its receipt is uncertain, then reconciles without replay', async () => {
+    mocks.launch.mockReturnValue({
+      surface: { kind: 'host-published' }, pasteDraftAfterLaunch: false,
+      structuredSettlement: Promise.resolve({
+        kind: 'visibility-unknown', sessionId: 'codex_123_456'
+      })
+    })
+    mocks.readSession.mockResolvedValueOnce({
+      kind: 'confirmed', sessionId: 'codex_123_456', agent: 'codex',
+      worktreeId: 'wt-lab', tabId: 'agent-session:codex_123_456',
+      source: 'host-inventory', executionAuthorized: false
+    })
+    render(<ProjectHubNativeDraftPanel doc={emptyProjectHub('project:lab')}
+      gitContext={gitContext}/>)
+    fireEvent.change(screen.getByRole('combobox', { name: /Agente detectado/ }), {
+      target: { value: 'codex' }
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Revisé el encargo/ }))
+    const start = screen.getByRole('button', { name: 'Abrir borrador en chat nativo' })
+    fireEvent.click(start)
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/incierto/))
+    expect(start).toBeDisabled()
+    fireEvent.click(start)
+    expect(mocks.launch).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Comprobar y abrir chat existente' }))
+    await waitFor(() => expect(mocks.activateSession).toHaveBeenCalledOnce())
+    expect(mocks.readSession).toHaveBeenCalledOnce()
+    expect(mocks.launch).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks new launches when the host returned no settlement identity', async () => {
+    mocks.launch.mockReturnValue({
+      surface: { kind: 'host-published' }, pasteDraftAfterLaunch: false
+    })
+    render(<ProjectHubNativeDraftPanel doc={emptyProjectHub('project:lab')}
+      gitContext={gitContext}/>)
+    fireEvent.change(screen.getByRole('combobox', { name: /Agente detectado/ }), {
+      target: { value: 'codex' }
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Revisé el encargo/ }))
+    const start = screen.getByRole('button', { name: 'Abrir borrador en chat nativo' })
+    fireEvent.click(start)
+    expect(start).toBeDisabled()
+    expect(mocks.launch).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Comprobar y abrir chat existente' }))
+      .not.toBeInTheDocument()
+  })
+
 })

@@ -32,6 +32,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   const [notice, setNotice] = useState('')
   const [pendingSession, setPendingSession] = useState<{ sessionId: string; agent: TuiAgent; worktreeId: string } | null>(null)
   const [launchPending, setLaunchPending] = useState(false)
+  const [launchUncertain, setLaunchUncertain] = useState(false)
   const [sessionBusy, setSessionBusy] = useState(false)
   const operationEpoch = useRef(0)
   const launchLocked = useRef(false)
@@ -52,6 +53,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     setConfirmed(false)
     setPendingSession(null)
     setLaunchPending(false)
+    setLaunchUncertain(false)
     setSessionBusy(false)
   }, [doc.projectId, doc.revision, worktreeId, hostId])
   const inventory = useMemo(() => {
@@ -102,7 +104,8 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   }
   function openDraft(): void {
     if (!local || !gitContext || !confirmed || !draft || !agent ||
-      !available.includes(agent) || reading || launchLocked.current) { return }
+      !available.includes(agent) || reading || launchUncertain ||
+      pendingSession !== null || launchLocked.current) { return }
     const store = useAppStore.getState()
     if (gitContext.hostId !== 'local' ||
       gitContext.worktreePath !== worktreePath ||
@@ -137,7 +140,8 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
       }
       if (!result.structuredSettlement) {
         finish()
-        setNotice('Chat solicitado sin recibo de sesión verificable; no se vinculó.')
+        setLaunchUncertain(true)
+        setNotice('Chat solicitado sin recibo verificable. Comprueba el estado en Orca antes de crear otro.')
         return
       }
       setNotice('Solicitud enviada al host. El borrador no se envía automáticamente.')
@@ -149,18 +153,22 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
           setPendingSession({ sessionId: outcome.sessionId, agent: launchedAgent, worktreeId })
           setNotice('Host confirmó un chat. Puedes comprobar su identidad y abrirlo; no acredita trabajo terminado.')
         } else if (outcome.kind === 'visibility-unknown') {
-          setNotice('El estado del chat es incierto: concilia desde Orca antes de crear otra sesión.')
+          setPendingSession({ sessionId: outcome.sessionId, agent: launchedAgent, worktreeId })
+          setLaunchUncertain(true)
+          setNotice('El estado del chat es incierto. Puedes consultar el inventario; no se crea otra sesión.')
         } else {
           setNotice('El host no confirmó una sesión nativa utilizable. No se envió el encargo desde Project Hub.')
         }
       }).catch(() => {
         if (epoch !== operationEpoch.current) { return }
         finish()
-        setNotice('No se pudo verificar el lanzamiento. No se reintentará automáticamente.')
+        setLaunchUncertain(true)
+        setNotice('No se pudo verificar el lanzamiento. Comprueba Orca; no se reintentará automáticamente.')
       })
     } catch {
       finish()
-      setNotice('Error al abrir el borrador. No se reintentará automáticamente.')
+      setLaunchUncertain(true)
+      setNotice('No se conoce el resultado del lanzamiento. No se reintentará automáticamente.')
     }
   }
 
@@ -177,7 +185,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
       if (epoch !== operationEpoch.current ||
         useAppStore.getState().activeWorktreeId !== worktreeId) { return }
       if (decision.kind !== 'confirmed') {
-        setNotice('Chat no conciliado: ' + decision.reason + '. No se reenviará ningún prompt.')
+        setNotice(`Chat no conciliado: ${decision.reason}. No se reenviará ningún prompt.`)
         return
       }
       if (!activateStructuredAgentSessionTab({
@@ -186,6 +194,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
         setNotice('El host reconoce el chat, pero su pestaña no está publicada en esta ventana.')
         return
       }
+      setLaunchUncertain(false)
       setNotice('Chat abierto. Sigue siendo un borrador; no hay Dispatch ni QA verificada.')
     } catch {
       if (epoch === operationEpoch.current) {
@@ -276,7 +285,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     </label>
     <div className="flex flex-wrap gap-2">
       <button type="button" className={button}
-        disabled={!confirmed || !local || !draft || !agent || !available.includes(agent) || reading || launchPending || sessionBusy}
+        disabled={!confirmed || !local || !draft || !agent || !available.includes(agent) || reading || launchPending || sessionBusy || launchUncertain || pendingSession !== null}
         onClick={openDraft}>Abrir borrador en chat nativo</button>
       {pendingSession && <button type="button" className={button}
         disabled={!local || launchPending || sessionBusy || reading}
@@ -287,6 +296,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
       No se crean Run, Task, Dispatch, worktrees ni permisos adicionales.
       QA y Git siguen siendo declaraciones hasta una verificación independiente.
       La conciliación del host solo habilita navegación, nunca ejecución.
+      Los lanzamientos sin recibo permanecen bloqueados hasta una conciliación externa.
     </p>
     {notice && <p role="status">{notice}</p>}
   </section>
