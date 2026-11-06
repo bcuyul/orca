@@ -33,6 +33,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   const [pendingSession, setPendingSession] = useState<{ sessionId: string; agent: TuiAgent; worktreeId: string } | null>(null)
   const [launchPending, setLaunchPending] = useState(false)
   const [launchUncertain, setLaunchUncertain] = useState(false)
+  const [sessionReconciled, setSessionReconciled] = useState(false)
   const [sessionBusy, setSessionBusy] = useState(false)
   const operationEpoch = useRef(0)
   const launchLocked = useRef(false)
@@ -54,6 +55,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     setPendingSession(null)
     setLaunchPending(false)
     setLaunchUncertain(false)
+    setSessionReconciled(false)
     setSessionBusy(false)
   }, [doc.projectId, doc.revision, worktreeId, hostId])
   const inventory = useMemo(() => {
@@ -105,7 +107,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   function openDraft(): void {
     if (!local || !gitContext || !confirmed || !draft || !agent ||
       !available.includes(agent) || reading || launchUncertain ||
-      pendingSession !== null || launchLocked.current) { return }
+      (pendingSession !== null && !sessionReconciled) || launchLocked.current) { return }
     const store = useAppStore.getState()
     if (gitContext.hostId !== 'local' ||
       gitContext.worktreePath !== worktreePath ||
@@ -119,7 +121,9 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     const epoch = operationEpoch.current
     const launchedAgent = agent
     launchLocked.current = true
+    setConfirmed(false)
     setLaunchPending(true)
+    setSessionReconciled(false)
     setPendingSession(null)
     const finish = (): void => {
       if (epoch !== operationEpoch.current) { return }
@@ -195,6 +199,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
         return
       }
       setLaunchUncertain(false)
+      setSessionReconciled(true)
       setNotice('Chat abierto. Sigue siendo un borrador; no hay Dispatch ni QA verificada.')
     } catch {
       if (epoch === operationEpoch.current) {
@@ -285,7 +290,7 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     </label>
     <div className="flex flex-wrap gap-2">
       <button type="button" className={button}
-        disabled={!confirmed || !local || !draft || !agent || !available.includes(agent) || reading || launchPending || sessionBusy || launchUncertain || pendingSession !== null}
+        disabled={!confirmed || !local || !draft || !agent || !available.includes(agent) || reading || launchPending || sessionBusy || launchUncertain || (pendingSession !== null && !sessionReconciled)}
         onClick={openDraft}>Abrir borrador en chat nativo</button>
       {pendingSession && <button type="button" className={button}
         disabled={!local || launchPending || sessionBusy || reading}

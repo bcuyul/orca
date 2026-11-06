@@ -170,8 +170,10 @@ describe('Project Hub native draft launch', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Revisé el encargo/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Abrir borrador en chat nativo' }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/incierto/))
-    expect(screen.queryByRole('button', { name: 'Comprobar y abrir chat existente' }))
-      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Comprobar y abrir chat existente' }))
+      .toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Abrir borrador en chat nativo' }))
+      .toBeDisabled()
     expect(mocks.activateSession).not.toHaveBeenCalled()
   })
 
@@ -221,6 +223,33 @@ describe('Project Hub native draft launch', () => {
     expect(mocks.launch).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'Comprobar y abrir chat existente' }))
       .not.toBeInTheDocument()
+  })
+
+  it('requires renewed approval before a second launch after confirmed navigation', async () => {
+    mocks.launch.mockReturnValue({
+      surface: { kind: 'local-chat', tabId: 'agent-session:codex_123_456' },
+      pasteDraftAfterLaunch: false,
+      structuredSettlement: Promise.resolve({ kind: 'structured', sessionId: 'codex_123_456' })
+    })
+    mocks.readSession.mockResolvedValue({
+      kind: 'confirmed', worktreeId: 'wt-lab', agent: 'codex',
+      sessionId: 'codex_123_456', tabId: 'agent-session:codex_123_456',
+      source: 'host-inventory', executionAuthorized: false
+    })
+    render(<ProjectHubNativeDraftPanel doc={emptyProjectHub('project:lab')}
+      gitContext={gitContext}/>)
+    fireEvent.change(screen.getByRole('combobox', { name: /Agente detectado/ }), {
+      target: { value: 'codex' }
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Revisé el encargo/ }))
+    const start = screen.getByRole('button', { name: 'Abrir borrador en chat nativo' })
+    fireEvent.click(start)
+    fireEvent.click(await screen.findByRole('button', { name: 'Comprobar y abrir chat existente' }))
+    await waitFor(() => expect(mocks.activateSession).toHaveBeenCalledOnce())
+    expect(start).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /Revisé el encargo/ }))
+    expect(start).toBeEnabled()
+    expect(mocks.launch).toHaveBeenCalledTimes(1)
   })
 
 })
