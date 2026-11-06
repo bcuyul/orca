@@ -119,6 +119,14 @@ jobs:
             src/renderer/src/components/right-sidebar/ProjectHubNativeDraftPanel.test.tsx \
             src/renderer/src/lib/project-hub-session-inventory-guard.test.ts \
             src/renderer/src/lib/project-hub-host-session-reader.test.ts
+      # A supervised Project Hub change can break OpenCode's shared-server
+      # pane/worktree attribution without modifying the Project Hub files.
+      - name: OpenCode cross-agent ownership regression
+        run: |
+          pnpm exec vitest run --config config/vitest.config.ts \
+            src/shared/agent-hook-listener-opencode-session-correlation.test.ts \
+            src/shared/agent-hook-listener-opencode-reattribution.test.ts \
+            src/shared/agent-hook-listener-opencode-session-registry.test.ts
       - name: Whole workspace typecheck
         run: pnpm typecheck
 
@@ -171,3 +179,24 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  # A single fail-closed signal for the fork's scoped Project Hub CI.
+  # This does NOT certify unrelated upstream jobs or replace review/approval.
+  supervised-gate:
+    name: Project Hub Supervised Gate
+    needs: [integration, project-hub-electron-smoke]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check all integration and Electron lanes
+        env:
+          INTEGRATION: ${{ needs.integration.result }}
+          ELECTRON: ${{ needs.project-hub-electron-smoke.result }}
+        run: |
+          if [[ "$INTEGRATION" != "success" || "$ELECTRON" != "success" ]]; then
+            echo "::error::Project Hub scoped checks are not all successful"
+            exit 1
+          fi
+          echo "Project Hub scoped checks passed for workflow SHA $GITHUB_SHA"

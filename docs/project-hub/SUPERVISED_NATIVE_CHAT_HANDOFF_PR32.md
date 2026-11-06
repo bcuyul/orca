@@ -26,3 +26,7 @@ Este cambio está apilado sobre el PR #31; no debe fusionarse de manera independ
 
 Vitest del guard, lector e interfaz; Oxlint, pnpm typecheck y Electron smoke en Windows/Ubuntu.
 El PR se mantiene Draft hasta comprobar CI en su head y una revisión independiente.
+
+## Prevención de regresiones OpenCode y señal de CI
+
+La matriz Windows/Ubuntu ejecuta casos existentes de correlación de sesiones OpenCode, reasignación de hooks a pane/worktree y registro de sesión. El job `Project Hub Supervised Gate` exige que terminen bien la integración y los smoke Electron; omisiones/cancelaciones no se interpretan como éxito. Es un gate **acotado**: no reemplaza reglas GitHub de branch protection, revisión independiente o autorización de merge.
