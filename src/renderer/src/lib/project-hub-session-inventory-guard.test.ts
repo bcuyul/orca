@@ -9,7 +9,7 @@ function snapshot(worktree = 'wt-1', agent = 'codex') {
     snapshotVersion: 3, activeGroupId: null, activeTabId: null,
     activeTabType: null,
     tabs: [{
-      type: 'agent-session', id: 'agent-session:tab-1', sessionId: request.sessionId,
+      type: 'agent-session', id: 'agent-session:' + request.sessionId, sessionId: request.sessionId,
       title: 'Native session', isActive: false, agent
     }]
   }
@@ -19,7 +19,7 @@ describe('Project Hub native host inventory guard', () => {
     expect(reconcileHubSessionInventory({ snapshots: [snapshot()] }, request))
       .toEqual({
         kind: 'confirmed', sessionId: request.sessionId, agent: request.agent,
-        worktreeId: 'wt-1', tabId: 'agent-session:tab-1',
+        worktreeId: 'wt-1', tabId: 'agent-session:' + request.sessionId,
         source: 'host-inventory', executionAuthorized: false
       })
     expect(reconcileHubSessionInventory({
@@ -35,7 +35,8 @@ describe('Project Hub native host inventory guard', () => {
       { snapshots: [{ ...snapshot(), agentSessionsUnverifiable: true }] },
       { snapshots: [{ ...snapshot(), publicationEpoch: UNPUBLISHED_WORKTREE_PUBLICATION_EPOCH }] },
       { snapshots: [{ ...snapshot(), tabs: null }] },
-      { snapshots: [{ ...snapshot(), tabs: [] }] }
+      { snapshots: [{ ...snapshot(), tabs: [] }] },
+      { snapshots: [{ ...snapshot(), tabs: [{ ...snapshot().tabs[0], id: 'agent-session:forged' }] }] }
     ]
     for (const response of cases) {
       expect(reconcileHubSessionInventory(response, request).kind)
