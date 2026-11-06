@@ -91,6 +91,7 @@ jobs:
             src/renderer/src/components/right-sidebar/ProjectHubDelegationRunner.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubHandoffPanel.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubNativeDraftPanel.tsx \
+            src/renderer/src/lib/project-hub-session-inventory-guard.ts \
             src/renderer/src/components/right-sidebar/ProjectHubTaskLinks.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubPanel.tsx \
             src/renderer/src/store/slices/ui-right-sidebar-sync.test.ts
@@ -114,7 +115,8 @@ jobs:
             src/renderer/src/components/right-sidebar/ProjectHubMathPreview.test.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubTaskLinks.test.tsx \
             src/renderer/src/components/right-sidebar/ProjectHubHandoffPanel.test.tsx \
-            src/renderer/src/components/right-sidebar/ProjectHubNativeDraftPanel.test.tsx
+            src/renderer/src/components/right-sidebar/ProjectHubNativeDraftPanel.test.tsx \
+            src/renderer/src/lib/project-hub-session-inventory-guard.test.ts
       - name: Whole workspace typecheck
         run: pnpm typecheck
 
