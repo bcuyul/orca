@@ -1,6 +1,7 @@
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-/** Windows cannot spawn the pnpm.cmd shim as a bare executable through the process host. */
+/** Windows cannot spawn pnpm.cmd through process-host without a shell. */
 export function resolveDevFreshPnpmCommand({
   platform = process.platform,
   nodeExecPath = process.execPath,
@@ -11,17 +12,21 @@ export function resolveDevFreshPnpmCommand({
     return { program: 'pnpm', args: ['dev', ...devArgs] }
   }
 
-  // pnpm sets npm_execpath to its JavaScript entrypoint when executing package scripts.
-  // Launch that entrypoint through Node rather than relying on Windows .CMD shims.
+  // Node-backed pnpm exposes npm_execpath. Keep the normal pnpm dev path
+  // when it is a real absolute JavaScript entrypoint.
   if (
-    typeof npmExecPath !== 'string' ||
-    !path.win32.isAbsolute(npmExecPath) ||
-    !/\.[cm]?js$/i.test(npmExecPath)
+    typeof npmExecPath === 'string' &&
+    path.win32.isAbsolute(npmExecPath) &&
+    /\.[cm]?js$/i.test(npmExecPath)
   ) {
-    throw new Error(
-      'Windows dev:fresh requires a pnpm JavaScript entrypoint (npm_execpath). ' +
-        'Instead set ORCA_DEV_USER_DATA_PATH to a separate directory and run pnpm dev.'
-    )
+    return { program: nodeExecPath, args: [npmExecPath, 'dev', ...devArgs] }
   }
-  return { program: nodeExecPath, args: [npmExecPath, 'dev', ...devArgs] }
+
+  // Standalone/Corepack pnpm on Windows may leave npm_execpath absent or
+  // point to a .cmd/.exe shim. Never invoke shell shims or infer PATH entries:
+  // the parent dev:fresh script already built the workspace packages, so
+  // mirror the remaining pnpm dev steps with a trusted repository-local
+  // Node entrypoint. Forward the same runner args unchanged.
+  const directRunner = fileURLToPath(new URL('./dev-fresh-direct.mjs', import.meta.url))
+  return { program: nodeExecPath, args: [directRunner, ...devArgs] }
 }
