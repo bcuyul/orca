@@ -1,5 +1,5 @@
 /** Explicit user action opens an editable native chat draft; Coordinator remains blocked. */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
@@ -10,6 +10,8 @@ import type { HubDocument } from '../../../../shared/project-hub-types'
 import { buildHubNativeDraft, type HubNativeTarget } from '../../../../shared/project-hub-native-draft'
 import { previewNativeAgentRouting } from '../../../../shared/project-hub-native-agent-routing'
 import { projectHubLocalGitSnapshot } from '../../../../shared/project-hub-git-assist'
+import { readHubLocalSessionInventory } from '@/lib/project-hub-host-session-reader'
+import { activateStructuredAgentSessionTab } from '@/lib/agent-session/structured-agent-session-tab-activation'
 
 type Props = { doc: HubDocument; gitContext?: {
   worktreeId: string; worktreePath: string; hostId: string
@@ -28,6 +30,13 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   const [confirmed, setConfirmed] = useState(false)
   const [reading, setReading] = useState(false)
   const [notice, setNotice] = useState('')
+  const [pendingSession, setPendingSession] = useState<{ sessionId: string; agent: TuiAgent; worktreeId: string } | null>(null)
+  const [launchPending, setLaunchPending] = useState(false)
+  const [launchUncertain, setLaunchUncertain] = useState(false)
+  const [sessionReconciled, setSessionReconciled] = useState(false)
+  const [sessionBusy, setSessionBusy] = useState(false)
+  const operationEpoch = useRef(0)
+  const launchLocked = useRef(false)
   const inventories = useAppStore(s => s.localDetectedAgentIdsByContext)
   const detecting = useAppStore(s => s.isDetectingLocalAgentsByContext)
   const refreshing = useAppStore(s => s.isRefreshingLocalAgentsByContext)
@@ -39,7 +48,16 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   useEffect(() => {
     if (local) { void useAppStore.getState().ensureDetectedAgents(worktreeId) }
   }, [local, worktreeId])
-  useEffect(() => { setConfirmed(false) }, [doc.projectId, doc.revision, worktreeId, hostId])
+  useEffect(() => {
+    operationEpoch.current += 1
+    launchLocked.current = false
+    setConfirmed(false)
+    setPendingSession(null)
+    setLaunchPending(false)
+    setLaunchUncertain(false)
+    setSessionReconciled(false)
+    setSessionBusy(false)
+  }, [doc.projectId, doc.revision, worktreeId, hostId])
   const inventory = useMemo(() => {
     // These store slices notify React when host detection changes.
     void inventories; void detecting; void refreshing
@@ -88,36 +106,108 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
   }
   function openDraft(): void {
     if (!local || !gitContext || !confirmed || !draft || !agent ||
-      !available.includes(agent) || reading) { return }
+      !available.includes(agent) || reading || launchUncertain ||
+      (pendingSession !== null && !sessionReconciled) || launchLocked.current) { return }
     const store = useAppStore.getState()
-    if (gitContext?.hostId !== 'local' ||
+    if (gitContext.hostId !== 'local' ||
       gitContext.worktreePath !== worktreePath ||
       store.activeWorktreeId !== worktreeId ||
       !structuredAgentSessionLaunchFeasible(store, {
-        agent, workspace: worktreeLaunchWorkspace(worktreeId),
-        settings: store.settings
+        agent, workspace: worktreeLaunchWorkspace(worktreeId), settings: store.settings
       })) {
       setNotice('Host, worktree o chat nativo no habilitado; no se abrió sesión.')
       return
     }
+    const epoch = operationEpoch.current
+    const launchedAgent = agent
+    launchLocked.current = true
+    setConfirmed(false)
+    setLaunchPending(true)
+    setSessionReconciled(false)
+    setPendingSession(null)
+    const finish = (): void => {
+      if (epoch !== operationEpoch.current) { return }
+      launchLocked.current = false
+      setLaunchPending(false)
+    }
     try {
       const result = launchAgentInNewTab({
-        requestId: newAgentLaunchRequestId(), agent,
+        requestId: newAgentLaunchRequestId(), agent: launchedAgent,
         worktreeId, requestedSurface: 'chat',
         prompt: draft.prompt, promptDelivery: 'draft',
         onStructuredHostDeclined: () => ({ opened: false })
       })
       if (!result) {
+        finish()
         setNotice('El host rechazó preparar el borrador nativo.')
         return
       }
-      setNotice('Borrador solicitado. Revisa y envía desde el chat: no hay autoenvío ni Dispatch.')
-      void result.structuredSettlement?.then(outcome => {
-        if (outcome.kind === 'failed' || outcome.kind === 'cancelled') {
-          setNotice('El host no confirmó la sesión nativa. No se envió un encargo desde Project Hub.')
+      if (!result.structuredSettlement) {
+        finish()
+        setLaunchUncertain(true)
+        setNotice('Chat solicitado sin recibo verificable. Comprueba el estado en Orca antes de crear otro.')
+        return
+      }
+      setNotice('Solicitud enviada al host. El borrador no se envía automáticamente.')
+      void result.structuredSettlement.then(outcome => {
+        if (epoch !== operationEpoch.current) { return }
+        finish()
+        if (outcome.kind === 'structured' &&
+          useAppStore.getState().activeWorktreeId === worktreeId) {
+          setPendingSession({ sessionId: outcome.sessionId, agent: launchedAgent, worktreeId })
+          setNotice('Host confirmó un chat. Puedes comprobar su identidad y abrirlo; no acredita trabajo terminado.')
+        } else if (outcome.kind === 'visibility-unknown') {
+          setPendingSession({ sessionId: outcome.sessionId, agent: launchedAgent, worktreeId })
+          setLaunchUncertain(true)
+          setNotice('El estado del chat es incierto. Puedes consultar el inventario; no se crea otra sesión.')
+        } else {
+          setNotice('El host no confirmó una sesión nativa utilizable. No se envió el encargo desde Project Hub.')
         }
-      }).catch(error => setNotice(`Error de chat nativo: ${String(error)}`))
-    } catch (error) { setNotice(`Error al abrir el borrador: ${String(error)}`) }
+      }).catch(() => {
+        if (epoch !== operationEpoch.current) { return }
+        finish()
+        setLaunchUncertain(true)
+        setNotice('No se pudo verificar el lanzamiento. Comprueba Orca; no se reintentará automáticamente.')
+      })
+    } catch {
+      finish()
+      setLaunchUncertain(true)
+      setNotice('No se conoce el resultado del lanzamiento. No se reintentará automáticamente.')
+    }
+  }
+
+  async function openConfirmedSession(): Promise<void> {
+    const candidate = pendingSession
+    if (!local || !candidate || sessionBusy || launchLocked.current ||
+      candidate.worktreeId !== worktreeId ||
+      useAppStore.getState().activeWorktreeId !== worktreeId) { return }
+    const epoch = operationEpoch.current
+    setSessionBusy(true)
+    try {
+      // Read-only host inventory. Do not call tab repair/reveal (side effects).
+      const decision = await readHubLocalSessionInventory(candidate)
+      if (epoch !== operationEpoch.current ||
+        useAppStore.getState().activeWorktreeId !== worktreeId) { return }
+      if (decision.kind !== 'confirmed') {
+        setNotice(`Chat no conciliado: ${decision.reason}. No se reenviará ningún prompt.`)
+        return
+      }
+      if (!activateStructuredAgentSessionTab({
+        worktreeId, tabId: decision.tabId, target: { kind: 'local' }
+      })) {
+        setNotice('El host reconoce el chat, pero su pestaña no está publicada en esta ventana.')
+        return
+      }
+      setLaunchUncertain(false)
+      setSessionReconciled(true)
+      setNotice('Chat abierto. Sigue siendo un borrador; no hay Dispatch ni QA verificada.')
+    } catch {
+      if (epoch === operationEpoch.current) {
+        setNotice('No fue posible conciliar el chat. No se creará otro automáticamente.')
+      }
+    } finally {
+      if (epoch === operationEpoch.current) { setSessionBusy(false) }
+    }
   }
   return <section className="space-y-2 rounded-lg border border-border bg-card p-3 text-xs"
     aria-label="Project Hub borrador en chat nativo">
@@ -200,13 +290,18 @@ export default function ProjectHubNativeDraftPanel({ doc, gitContext }: Props): 
     </label>
     <div className="flex flex-wrap gap-2">
       <button type="button" className={button}
-        disabled={!confirmed || !local || !draft || !agent || !available.includes(agent) || reading}
+        disabled={!confirmed || !local || !draft || !agent || !available.includes(agent) || reading || launchPending || sessionBusy || launchUncertain || (pendingSession !== null && !sessionReconciled)}
         onClick={openDraft}>Abrir borrador en chat nativo</button>
+      {pendingSession && <button type="button" className={button}
+        disabled={!local || launchPending || sessionBusy || reading}
+        onClick={() => void openConfirmedSession()}>Comprobar y abrir chat existente</button>}
       <button type="button" className={button} disabled>Coordinator: ejecución bloqueada</button>
     </div>
     <p className="text-muted-foreground">
       No se crean Run, Task, Dispatch, worktrees ni permisos adicionales.
       QA y Git siguen siendo declaraciones hasta una verificación independiente.
+      La conciliación del host solo habilita navegación, nunca ejecución.
+      Los lanzamientos sin recibo permanecen bloqueados hasta una conciliación externa.
     </p>
     {notice && <p role="status">{notice}</p>}
   </section>
