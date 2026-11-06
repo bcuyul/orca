@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { resolveDevFreshPnpmCommand } from './dev-fresh-pnpm-command.mjs'
 
-test('Windows uses Node to launch the pnpm JavaScript entrypoint, preserving arguments', () => {
+test('Windows retains the pnpm JS entrypoint and forwards args', () => {
   const cmd = resolveDevFreshPnpmCommand({
     platform: 'win32',
     nodeExecPath: 'C:\\Program Files\\nodejs\\node.exe',
@@ -19,18 +19,27 @@ test('Windows uses Node to launch the pnpm JavaScript entrypoint, preserving arg
   })
 })
 
-test('POSIX uses unchanged pnpm launcher', () => {
+test('POSIX uses the unchanged pnpm launcher', () => {
   assert.deepEqual(
     resolveDevFreshPnpmCommand({ platform: 'linux', devArgs: ['--worktree-profile'] }),
     { program: 'pnpm', args: ['dev', '--worktree-profile'] }
   )
 })
 
-test('Windows refuses missing or shell-shim entrypoints instead of spawning cmd.exe', () => {
-  for (const npmExecPath of [undefined, 'pnpm.cmd', 'C:\\Tools\\pnpm.cmd', 'relative\\pnpm.cjs']) {
-    assert.throws(
-      () => resolveDevFreshPnpmCommand({ platform: 'win32', npmExecPath }),
-      /Windows dev:fresh requires a pnpm JavaScript entrypoint/
-    )
+test('Windows standalone pnpm falls back to a repository-owned Node runner without cmd', () => {
+  for (const npmExecPath of [
+    undefined, '', 'pnpm.cmd', 'C:\\Tools\\pnpm.cmd',
+    'C:\\Tools\\pnpm.exe', 'relative\\pnpm.cjs'
+  ]) {
+    const cmd = resolveDevFreshPnpmCommand({
+      platform: 'win32',
+      nodeExecPath: 'C:\\Program Files\\nodejs\\node.exe',
+      npmExecPath,
+      devArgs: ['--stable-name']
+    })
+    assert.equal(cmd.program, 'C:\\Program Files\\nodejs\\node.exe')
+    assert.match(cmd.args[0], /dev-fresh-direct\.mjs$/)
+    assert.deepEqual(cmd.args.slice(1), ['--stable-name'])
+    assert.equal(cmd.args.some((arg) => /\.cmd$/i.test(arg)), false)
   }
 })
