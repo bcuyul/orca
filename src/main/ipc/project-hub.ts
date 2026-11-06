@@ -1,4 +1,11 @@
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import type { OrcaRuntimeService } from '../runtime/orca-runtime'
+import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
+import { projectHostSetupProjectionFromRepos } from '../../shared/project-host-setup-projection'
+import { resolveHubProjectId } from '../../shared/project-hub-project-id'
+import { projectHubLocalGitSnapshot } from '../../shared/project-hub-git-assist'
+import { stageHubNativePlan } from '../project-hub/supervised-native-plan-stage'
+import type { HubStageNativePlanRequest } from '../../shared/project-hub-supervised-stage'
 import type { Store } from '../persistence/loading-store/store'
 import { getProjectIdentityKey } from '../../shared/project-host-setup-projection'
 import { isHubDocument } from '../../shared/project-hub-types'
@@ -10,7 +17,7 @@ let trustedWindowId: number | null = null
 /** Refresh on desktop window recreation; never retain a stale renderer authority. */
 export function setTrustedProjectHubRenderer(id: number | null): void { trustedWindowId = id }
 
-export function registerProjectHubHandlers(store: Store): void {
+export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeService): void {
   const db = new ProjectHubStore(app.getPath('userData'))
   const authorize = (sender: number, projectId: unknown): string => {
     if(trustedWindowId===null || sender!==trustedWindowId) throw new Error('Project Hub requires trusted desktop window')
@@ -40,4 +47,78 @@ export function registerProjectHubHandlers(store: Store): void {
     }
     return buildNativePlanPreview(db.read(projectId), data.planId, data.expectedRevision as number)
   })
+  // A host-native dialog is the approval boundary; no renderer boolean grants
+  // orchestration authority. Only quarantined Run/Task rows may be written here.
+  let stageInFlight = false
+  ipcMain.handle('projectHub:stageNativePlan', async (event, raw: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame ||
+        !raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error('Invalid supervised stage origin')
+    }
+    const request = raw as HubStageNativePlanRequest
+    const projectId = authorize(event.sender.id, request.projectId)
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window.isDestroyed() || window.webContents.id !== trustedWindowId) {
+      throw new Error('Supervised staging requires the current trusted Orca window')
+    }
+    if (stageInFlight) { throw new Error('Another supervised stage is still in progress') }
+    stageInFlight = true
+    try {
+      return await stageHubNativePlan(request, {
+        readProject: (id) => db.read(authorize(event.sender.id, id)),
+        getOrchestrationDb: () => runtime.getOrchestrationDb(),
+        inspectWorktree: async (worktreeId) => {
+          const selector = `id:${worktreeId}`
+          const target = await runtime.resolveRuntimeGitTarget(selector)
+          if (target.worktree.id !== worktreeId ||
+              target.executionHostId !== LOCAL_EXECUTION_HOST_ID) {
+            throw new Error('Only an exact locally owned Git worktree may stage a Run')
+          }
+          const repo = store.getRepo(target.worktree.repoId)
+          if (!repo) { throw new Error('Worktree repository is not registered') }
+          const projection = projectHostSetupProjectionFromRepos(store.getRepos())
+          const resolvedProjectId = resolveHubProjectId({
+            projectId: target.worktree.projectId, repoId: target.worktree.repoId,
+            hostId: target.worktree.hostId,
+            projects: [...store.getProjects(), ...projection.projects],
+            setups: projection.setups, fallback: getProjectIdentityKey(repo)
+          })
+          if (resolvedProjectId !== projectId) {
+            throw new Error('Worktree is not owned by the selected Project Hub project')
+          }
+          const [status, history] = await Promise.all([
+            runtime.getRuntimeGitStatus(selector),
+            runtime.getRuntimeGitHistory(selector, { limit: 1 })
+          ])
+          const git = projectHubLocalGitSnapshot(status, history)
+          return {
+            worktreeId, repoId: target.worktree.repoId, projectId,
+            hostId: LOCAL_EXECUTION_HOST_ID, baseSha: git.headSha
+          }
+        },
+        confirmInHostWindow: async ({ preview, worktree }) => {
+          if (window.isDestroyed() || window.webContents.id !== trustedWindowId) {
+            return false
+          }
+          const answer = await dialog.showMessageBox(window, {
+            type: 'warning', title: 'Project Hub — Run/Task supervisado',
+            message: '¿Crear un Run y tareas nativas para este plan aprobado?',
+            detail: [
+              `Plan: ${preview.objective.slice(0, 160)}`,
+              `Tareas: ${preview.tasks.length} · Proyecto: ${projectId.slice(0, 160)}`,
+              `Worktree: ${worktree.worktreeId.slice(0, 160)}`,
+              `HEAD Git: ${worktree.baseSha}`,
+              'NO inicia agentes, terminales, OpenCode, QA ni Dispatch.',
+              'Se requiere otra aprobación para ejecutar una tarea.'
+            ].join('\n'),
+            buttons: ['Cancelar', 'Crear Run/Task sin ejecutar'],
+            defaultId: 0, cancelId: 0, noLink: true
+          })
+          return answer.response === 1 && !window.isDestroyed() &&
+            window.webContents.id === trustedWindowId
+        }
+      })
+    } finally { stageInFlight = false }
+  })
+
 }

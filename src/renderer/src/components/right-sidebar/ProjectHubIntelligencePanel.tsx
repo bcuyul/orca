@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { HubDocument } from '../../../../shared/project-hub-types'
 import type { NativePlanPreview } from '../../../../shared/native-plan-preview'
+import type { HubStagedNativePlan } from '../../../../shared/project-hub-supervised-stage'
 import {
   emptyHubIntelligence, isHubIntelligence, approvedHubMemories,
   type HubIntelligence, type HubHumanDecision, type HubBlocker,
@@ -68,6 +69,8 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [notice, setNotice] = useState('')
   const [preview, setPreview] = useState<NativePlanPreview | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [stageBusy, setStageBusy] = useState(false)
+  const [staged, setStaged] = useState<{revision: number; receipt: HubStagedNativePlan} | null>(null)
   const [previewError, setPreviewError] = useState('')
   const [rawPlan, setRawPlan] = useState('')
   const [blockerForReplan, setBlockerForReplan] = useState('')
@@ -110,6 +113,29 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     } finally {
       setPreviewBusy(false)
     }
+  }
+  async function stageNativePlan(preview: NativePlanPreview): Promise<void> {
+    if (!gitContext || gitContext.hostId !== 'local' || stageBusy ||
+        preview.projectId !== doc.projectId || preview.revision !== doc.revision ||
+        preview.approval !== 'accepted') { return }
+    setStageBusy(true)
+    try {
+      const result = await window.api.projectHub.stageNativePlan({
+        projectId: doc.projectId, planId: preview.planId,
+        expectedRevision: preview.revision, planSha: preview.planSha,
+        worktreeId: gitContext.worktreeId
+      })
+      if (result.status === 'cancelled') {
+        setNotice('Se canceló la materialización: no se creó ningún Run.')
+      } else {
+        setStaged({ revision: preview.revision, receipt: result })
+        setNotice(result.reused
+          ? 'Run existente reconciliado; no hay tareas duplicadas.'
+          : 'Run y tareas nativos creados. El Dispatch sigue bloqueado.')
+      }
+    } catch (error) {
+      setNotice(`Materialización rechazada: ${String(error)}. No se lanzarán agentes.`)
+    } finally { setStageBusy(false) }
   }
   async function copy(text: string): Promise<void> {
     try { await window.api.ui.writeClipboardText(text); setNotice('Encargo copiado. Revisa el contexto antes de entregarlo a un CLI.') }
@@ -175,7 +201,8 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     <h3 className="text-sm font-semibold">Inteligencia de agentes · laboratorio</h3>
     <p className="text-muted-foreground">
       Propuestas auditables; no se ejecutan ni se convierten en éxito automáticamente.
-      La proyección nativa es de solo lectura. Materialización, Dispatch y ejecución requieren permisos separados del host.
+      Los planes aprobados pueden materializar Run/Task tras una confirmación nativa.
+      Dispatch y ejecución requieren autorización separada del host.
     </p>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Atlas · planificación y DAG</h4>
@@ -222,7 +249,20 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
               {t.id} · {t.title} ({t.role}) · {t.dependsOn.length ?
                 `Depende de: ${t.dependsOn.join(', ')}` : 'Sin dependencias'}
             </li>)}</ol>
-            <p className="font-medium">Solo lectura: no se creó Run, Task ni Dispatch. Los workers permanecen bloqueados.</p>
+            <p className="font-medium">Vista previa sin efectos. Materializar crea solo Run/Task, nunca Dispatch.</p>
+            {currentPreview.approval === 'accepted' && <button className={action} type="button"
+              disabled={stageBusy || busy || !gitContext || gitContext.hostId !== 'local'}
+              onClick={() => void stageNativePlan(currentPreview)}>
+              {stageBusy ? 'Validando y solicitando aprobación…' : 'Crear Run/Task nativo (supervisado)'}
+            </button>}
+            {staged?.revision === doc.revision && staged.receipt.planId === p.id &&
+              <div className="rounded border border-border p-2" role="status">
+                <p>Run real: <code>{staged.receipt.runId}</code> · {staged.receipt.reused ? 'reutilizado' : 'nuevo'}</p>
+                <p>HEAD verificado: <code>{staged.receipt.baseSha.slice(0, 12)}</code></p>
+                <ul className="ml-4 list-disc">{Object.entries(staged.receipt.tasks).map(([hubId, nativeId]) =>
+                  <li key={hubId}>{hubId} → <code>{nativeId}</code></li>)}</ul>
+                <p className="font-semibold">Sin Dispatch ni agentes ejecutándose.</p>
+              </div>}
           </div>}
         </div>
       })}
