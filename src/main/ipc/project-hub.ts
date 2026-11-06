@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
-import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
+import { LOCAL_EXECUTION_HOST_ID, getRepoExecutionHostId } from '../../shared/execution-host'
+import { parseRuntimeWorktreeId } from '../runtime/runtime-worktree-path-identity'
 import { projectHostSetupProjectionFromRepos } from '../../shared/project-host-setup-projection'
 import { resolveHubProjectId } from '../../shared/project-hub-project-id'
 import { projectHubLocalGitSnapshot } from '../../shared/project-hub-git-assist'
@@ -69,17 +70,16 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
         getOrchestrationDb: () => runtime.getOrchestrationDb(),
         inspectWorktree: async (worktreeId) => {
           const selector = `id:${worktreeId}`
-          const target = await runtime.resolveRuntimeGitTarget(selector)
-          if (target.worktree.id !== worktreeId ||
-              target.executionHostId !== LOCAL_EXECUTION_HOST_ID) {
-            throw new Error('Only an exact locally owned Git worktree may stage a Run')
+          const parsed = parseRuntimeWorktreeId(worktreeId)
+          if (!parsed) { throw new Error('Invalid registered Git worktree identity') }
+          const repo = store.getRepo(parsed.repoId)
+          if (!repo || getRepoExecutionHostId(repo) !== LOCAL_EXECUTION_HOST_ID) {
+            throw new Error('Only a locally registered repository may stage a Run')
           }
-          const repo = store.getRepo(target.worktree.repoId)
-          if (!repo) { throw new Error('Worktree repository is not registered') }
           const projection = projectHostSetupProjectionFromRepos(store.getRepos())
           const resolvedProjectId = resolveHubProjectId({
-            projectId: target.worktree.projectId, repoId: target.worktree.repoId,
-            hostId: target.worktree.hostId,
+            repoId: parsed.repoId,
+            hostId: LOCAL_EXECUTION_HOST_ID,
             projects: [...store.getProjects(), ...projection.projects],
             setups: projection.setups, fallback: getProjectIdentityKey(repo)
           })
@@ -92,7 +92,7 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
           ])
           const git = projectHubLocalGitSnapshot(status, history)
           return {
-            worktreeId, repoId: target.worktree.repoId, projectId,
+            worktreeId, repoId: parsed.repoId, projectId,
             hostId: LOCAL_EXECUTION_HOST_ID, baseSha: git.headSha
           }
         },
