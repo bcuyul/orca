@@ -79,6 +79,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
     (/^[1-9]\d{0,7}$/.test(tokenBudgetText.trim())&&Number(tokenBudgetText)<=50_000_000)
   const tokenBudget=budgetIsValid&&tokenBudgetText.trim()?Number(tokenBudgetText):null
   const budgetShare=budgetIsValid?shareOfPlannedTokenBudget(plannedTotal,tokenBudget):null
+  const overBudget=tokenBudget!==null&&plannedTotal>tokenBudget
 
   async function refreshQuota():Promise<void>{
     if(quotaBusy){return}
@@ -88,7 +89,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   }
 
   async function prepare():Promise<void>{
-    if(busy||invalidEstimate||!budgetIsValid){return}
+    if(busy||invalidEstimate||!budgetIsValid||overBudget){return}
     setBusy(true)
     setNotice('')
     try{
@@ -99,6 +100,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       }
       const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,profile,
         tokenEstimates,
+        ...(tokenBudget!==null?{tokenBudget}:{}),
         baseBranch:branch,repoId,hostId,now:freshTimestamp(),
         mint:()=>{
           const uuid=createBrowserUuid().replaceAll('-','').toLowerCase()
@@ -229,8 +231,8 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
         Total del lote: {plannedTotal.toLocaleString('es-CL')} tokens orientativos
         {budgetShare!==null?` · ${budgetShare}% del presupuesto manual`:''}
       </p>
-      {budgetShare!==null&&budgetShare>100&&<p role="alert" className="text-destructive">
-        La planificación supera el presupuesto indicado. Considera dividir o reducir tareas.
+      {overBudget&&<p role="alert" className="text-destructive">
+        El lote supera el presupuesto manual: reduce las estimaciones o aumenta el límite antes de prepararlo.
       </p>}
       <p className="text-muted-foreground">
         Valores de referencia, no predicción verificada ni consumo real.
@@ -245,7 +247,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
           {[1,2,3].map(n=><option key={n} value={n}>{n}</option>)}
         </select>
       </label>
-      <button type="button" className={button} disabled={busy||selected.length===0||selected.length>10||reviewer===worker||invalidEstimate||!budgetIsValid}
+      <button type="button" className={button} disabled={busy||selected.length===0||selected.length>10||reviewer===worker||invalidEstimate||!budgetIsValid||overBudget}
         onClick={()=>void prepare()}>Preparar {selected.length||''} historia(s)</button>
     </div>
     <p className="flex items-center gap-1 text-xs text-muted-foreground">
