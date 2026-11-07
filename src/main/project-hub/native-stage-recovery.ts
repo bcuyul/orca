@@ -11,6 +11,37 @@ import type { VerifiedHubStageWorktree } from './supervised-native-plan-stage'
 
 type Grant = { id: string; scope_json: string }
 
+/** The ledger's Run existence check alone is not proof the task DAG survived
+ * unmodified. Compare full source, role, acceptance and native predecessors. */
+function nativeTaskDagMatches(
+  db: OrchestrationDb,
+  preview: NativePlanPreview,
+  runId: string,
+  tasks: Record<string, string>
+): boolean {
+  const run = db.getRun(runId)
+  if (!run || run.objective !== preview.objective) { return false }
+  for (const task of preview.tasks) {
+    const native = db.getTask(tasks[task.id])
+    if (!native || native.run_id !== runId) { return false }
+    try {
+      const spec: unknown = JSON.parse(native.spec)
+      const deps: unknown = JSON.parse(native.deps)
+      if (!spec || typeof spec !== 'object' || Array.isArray(spec) ||
+          !('source' in spec) || spec.source !== 'adaptive-untrusted-plan' ||
+          !('objective' in spec) || spec.objective !== preview.objective ||
+          !('role' in spec) || spec.role !== task.role ||
+          !('title' in spec) || spec.title !== task.title ||
+          !('acceptance' in spec) || spec.acceptance !== task.acceptance ||
+          !Array.isArray(deps) ||
+          JSON.stringify(deps) !== JSON.stringify(task.dependsOn.map(id => tasks[id]))) {
+        return false
+      }
+    } catch { return false }
+  }
+  return true
+}
+
 /**
  * Project-scoped, READ-ONLY recovery. Grants and admissions are already durable
  * in Orca's own SQLite; no parallel Project Hub store or runtime scheduler.
@@ -80,19 +111,25 @@ export function inspectHubNativeStages(
     const evidence = inspectNativeMaterialization(db, reader, request)
     const reservation = reader.getReservation(request.requestId)
     let tasks: Record<string, string> | null = null
+    let disposition: HubNativeStageEvidence['disposition'] = 'manual_reconciliation'
+    let matchedEvidence: HubNativeStageEvidence['evidence'] = evidence.evidence
     if (evidence.disposition === 'completed_verified' && reservation?.receipt) {
       const raw: unknown = JSON.parse(reservation.receipt)
       if (raw && typeof raw === 'object' && !Array.isArray(raw) &&
           'tasks' in raw && raw.tasks && typeof raw.tasks === 'object' &&
           !Array.isArray(raw.tasks)) {
-        tasks = raw.tasks as Record<string, string>
+        const mapped = raw.tasks as Record<string, string>
+        if (evidence.runId && nativeTaskDagMatches(db, preview, evidence.runId, mapped)) {
+          tasks = mapped
+          disposition = 'completed_verified'
+        } else {
+          matchedEvidence = 'divergent'
+        }
       }
     }
     entries.push({
       baseSha: scope.baseSha, state: evidence.state,
-      evidence: evidence.evidence,
-      disposition: evidence.disposition === 'completed_verified'
-        ? 'completed_verified' : 'manual_reconciliation',
+      evidence: matchedEvidence, disposition,
       runId: evidence.runId, tasks,
       recordedTaskCount: evidence.recordedTaskCount,
       unrecordedNativeTaskCount: evidence.unrecordedNativeTaskCount,

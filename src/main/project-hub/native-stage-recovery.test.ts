@@ -160,4 +160,19 @@ describe('Project Hub native stage receipt recovery', () => {
     await expect(stageHubNativePlan(f.request, f.host))
       .rejects.toThrow(/Uncertain previous native Run/)
   })
+  it('rejects a forged completed task DAG, even with a matching admission receipt', async () => {
+    const f = fixture()
+    const result = await stageHubNativePlan(f.request, f.host)
+    if (result.status !== 'staged') { throw new Error('Expected native materialization') }
+    const qaTaskId = result.tasks.qa
+    f.db.db.prepare('UPDATE tasks SET deps = ? WHERE id = ?').run('[]', qaTaskId)
+    const observed = inspectHubNativeStages(f.db, f.preview, f.hostWorktree)
+    expect(observed.status).toBe('needs_reconciliation')
+    expect(observed.entries[0]).toMatchObject({
+      evidence: 'divergent', disposition: 'manual_reconciliation', tasks: null
+    })
+    await expect(stageHubNativePlan(f.request, f.host))
+      .rejects.toThrow(/Uncertain previous native Run/)
+  })
+
 })
