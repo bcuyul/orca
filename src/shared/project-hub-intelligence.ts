@@ -62,7 +62,7 @@ export type HubHumanDecision = {
   id: string
   subject: 'plan' | 'memory'
   subjectId: string
-  verdict: 'accepted' | 'rejected'
+  verdict: 'accepted' | 'rejected' | 'revoked'
   justification: string
   createdAt: string
 }
@@ -185,18 +185,33 @@ export function isHubIntelligence(x: unknown): x is HubIntelligence {
   }
   const decided = new Set<string>()
   const acceptedPlans = new Set<string>()
+  const memoryApprovedAt = new Map<string, number>()
+  const memoryRevoked = new Set<string>()
   for (const value of decisions) {
     if (!record(value) || !takeId(value.id) ||
       !['plan','memory'].includes(String(value.subject)) ||
-      !identifier(value.subjectId) || !['accepted','rejected'].includes(String(value.verdict)) ||
+      !identifier(value.subjectId) || !['accepted','rejected','revoked'].includes(String(value.verdict)) ||
       !content(value.justification, 1000) || !timestamp(value.createdAt)) { return false }
     if (value.subject === 'plan' ? !planIds.has(value.subjectId as string) :
       !memoryIds.has(value.subjectId as string)) { return false }
     const key = `${value.subject}:${value.subjectId}`
+    if (value.verdict === 'revoked') {
+      const approvedAt = memoryApprovedAt.get(value.subjectId as string)
+      const revokedAt = Date.parse(value.createdAt as string)
+      if (value.subject !== 'memory' || approvedAt === undefined ||
+          !Number.isFinite(revokedAt) || revokedAt < approvedAt ||
+          memoryRevoked.has(value.subjectId as string)) { return false }
+      memoryRevoked.add(value.subjectId as string)
+      continue
+    }
     if (decided.has(key)) { return false }
     decided.add(key)
     if (value.subject === 'plan' && value.verdict === 'accepted') {
       acceptedPlans.add(value.subjectId as string)
+    } else if (value.subject === 'memory' && value.verdict === 'accepted') {
+      const time = Date.parse(value.createdAt as string)
+      if (!Number.isFinite(time)) { return false }
+      memoryApprovedAt.set(value.subjectId as string, time)
     }
   }
   // The client may attest external work, but never establish authenticated CLI authority.
@@ -257,5 +272,7 @@ export function isHubIntelligenceTransition(
 export function approvedHubMemories(state: HubIntelligence): HubMemoryCandidate[] {
   const accepted = new Set(state.decisions.filter(d =>
     d.subject === 'memory' && d.verdict === 'accepted').map(d => d.subjectId))
-  return state.memories.filter(m => accepted.has(m.id))
+  const revoked = new Set(state.decisions.filter(d =>
+    d.subject === 'memory' && d.verdict === 'revoked').map(d => d.subjectId))
+  return state.memories.filter(m => accepted.has(m.id) && !revoked.has(m.id))
 }
