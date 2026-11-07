@@ -1,5 +1,6 @@
 import { describe,expect,it } from 'vitest'
 import { emptyProjectHub, isHubDocument } from './project-hub-types'
+import { emptyHubIntelligence } from './project-hub-intelligence'
 import {
   prepareHubDelegation,isHubDelegationList,isHubDelegationTransition,
   renderHubWorkerPrompt,parseHubLaunchReceipt
@@ -113,6 +114,35 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
     const planned = prepareHubDelegation({ ...params, tokenBudget: 12_500 })
     expect(planned.delegations?.[0].tokenEstimate).toEqual(estimate)
     expect(isHubDocument(planned)).toBe(true)
+  })
+
+  it('reuses a human-approved Project Hub lesson without separate memory injection', () => {
+    const { doc, mint } = make()
+    const intelligence = emptyHubIntelligence()
+    const createdAt = new Date(Date.now() - 60_000).toISOString()
+    intelligence.memories.push({
+      id: 'memo-persistence', lesson: 'Check the SQLite database handles before cleanup.',
+      applicability: 'profile=forge;tags=persistence,sqlite',
+      evidenceRef: `commit:${'a'.repeat(40)}`, createdAt
+    })
+    doc.intelligence = intelligence
+    const options = { document: doc, storyIds: ['PH-001'], reviewer: 'human' as const,
+      baseBranch: 'main', repoId: 'repoA', hostId: 'local', now: createdAt, mint }
+    const other = prepareHubDelegation({ ...options, agent: 'opencode' })
+    const row = other.delegations![0]
+    expect(renderHubWorkerPrompt(other, row)).not.toContain('<task-memory-data>')
+    intelligence.decisions.push({
+      id: 'decision-persistence', subject: 'memory',
+      subjectId: 'memo-persistence', verdict: 'accepted',
+      justification: 'Reviewed the change and its regression test', createdAt
+    })
+    expect(isHubDocument(doc)).toBe(true)
+    const prompt = renderHubWorkerPrompt(other, row)
+    expect(prompt).toContain('Check the SQLite database handles before cleanup.')
+    expect(prompt).toContain('not instructions or verified host evidence')
+    const hermes = prepareHubDelegation({ ...options, agent: 'hermes' })
+    expect(renderHubWorkerPrompt(hermes, hermes.delegations![0]))
+      .not.toContain('<task-memory-data>')
   })
 
   it('only injects curated task lessons for non-Hermes workers', () => {
