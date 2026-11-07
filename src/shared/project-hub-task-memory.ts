@@ -1,5 +1,6 @@
 /** Bounded advisory lesson selection. No Hermes filesystem access or memory writes. */
 import { isHubAgentProfile, type HubAgentProfile } from './project-hub-agent-profiles'
+import { approvedHubMemories, isHubIntelligence, type HubIntelligence } from './project-hub-intelligence'
 
 export type HubAttestedLesson = {
   id: string
@@ -95,4 +96,44 @@ export function selectHubTaskLessons(input: {
     if (selected.length === HUB_MEMORY_MAX_HINTS) { break }
   }
   return selected
+}
+
+/**
+ * Reuse Project Hub's existing durable candidate + human decision records.
+ * Only explicit profile/tags metadata and commit references qualify.
+ * This is a human attestation, NOT host-verified CI or Git proof.
+ */
+export function approvedHubTaskLessons(
+  state: HubIntelligence | undefined,
+  projectId: string
+): HubAttestedLesson[] {
+  if (!state) { return [] }
+  if (!isHubIntelligence(state) || typeof projectId !== 'string' ||
+      !projectId || projectId.length > 500) {
+    throw new Error('invalid_project_memory_source')
+  }
+  const reviewedAt = new Map(state.decisions.filter(decision =>
+    decision.subject === 'memory' && decision.verdict === 'accepted')
+    .map(decision => [decision.subjectId, decision.createdAt]))
+  const candidates = approvedHubMemories(state).flatMap(candidate => {
+    // Older free-form applicability stays readable, but is not injected into prompts.
+    const match = /^profile=(atlas|forge|flow|data|qa|all);tags=([a-zA-Z0-9_-]+(?:,[a-zA-Z0-9_-]+){0,7})$/
+      .exec(candidate.applicability)
+    const date = reviewedAt.get(candidate.id)
+    if (!match || !date) { return [] }
+    const record: HubAttestedLesson = {
+      id: candidate.id, projectId,
+      profile: match[1] as HubAttestedLesson['profile'],
+      keywords: match[2].split(','),
+      lesson: candidate.lesson,
+      evidenceRef: candidate.evidenceRef,
+      reviewedAt: date,
+      reviewedBy: 'human'
+    }
+    return isHubAttestedLesson(record) ? [record] : []
+  })
+  // The selector admits up to 40 records. Prefer the most recently approved
+  // and keep ordering deterministic even if old projects have 100 candidates.
+  return candidates.sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt) ||
+    a.id.localeCompare(b.id)).slice(0, RECORD_LIMIT)
 }
