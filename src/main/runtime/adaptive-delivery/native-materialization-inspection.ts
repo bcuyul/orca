@@ -27,7 +27,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  */
 export function inspectNativeMaterialization(
   db: OrchestrationDb,
-  ledger: HostAdmissionLedger,
+  ledger: Pick<HostAdmissionLedger, 'getReservation'>,
   request: AdaptiveRequest
 ): NativeMaterializationInspection {
   assertAdaptiveRequest(request)

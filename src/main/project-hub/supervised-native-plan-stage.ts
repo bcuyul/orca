@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import type { HubDocument } from '../../shared/project-hub-types'
 import {
   isHubStageNativePlanRequest, type HubStageNativePlanRequest,
@@ -11,6 +10,8 @@ import { HostAdmissionLedger } from '../runtime/adaptive-delivery/host-admission
 import { NativePlanMaterializer } from '../runtime/adaptive-delivery/native-plan-materializer'
 import type { AdaptiveRequest, AdaptiveScope } from '../../shared/adaptive-delivery/admission-contracts'
 import { buildNativePlanPreview } from './native-plan-preview'
+import { hubStageAdmission } from './native-stage-identity'
+import { inspectHubNativeStages } from './native-stage-recovery'
 
 /** Verified by the owning host's repository resolver and fresh native Git read. */
 export type VerifiedHubStageWorktree = {
@@ -85,21 +86,19 @@ export async function stageHubNativePlan(
     throw new Error('Project/worktree or Git HEAD changed while confirming; retry inspection')
   }
 
-  const digest = createHash('sha256').update(JSON.stringify({
+  const admission = hubStageAdmission({
     projectId: request.projectId, repoId: verified.repoId,
     hostId: verified.hostId, worktreeId: verified.worktreeId,
-    baseSha: verified.baseSha, planId: request.planId, planSha: current.planSha
-  })).digest('hex')
-  const scopeId = `hub-stage-${digest.slice(0, 40)}`
-  const requestId = `hub-stage-request-${digest.slice(0, 40)}`
-  const admission: AdaptiveRequest = {
-    scopeId, requestId,
-    projectId: request.projectId, repoId: verified.repoId,
-    hostId: verified.hostId, baseSha: verified.baseSha,
-    planId: request.planId, planSha: current.planSha,
-    taskIds: current.tasks.map(task => task.id), operation: 'materialize_run'
-  }
+    baseSha: verified.baseSha, planId: request.planId,
+    planSha: current.planSha, taskIds: current.tasks.map(task => task.id)
+  })
+  const { scopeId, requestId } = admission
   const db = host.getOrchestrationDb()
+  // A previous interrupted materialization of this plan/worktree, even at
+  // a different HEAD, must be reconciled before another irreversible write.
+  if (inspectHubNativeStages(db, current, verified).status === 'needs_reconciliation') {
+    throw new Error('Uncertain previous native Run; reconcile before another materialization')
+  }
   const ledger = new HostAdmissionLedger(db)
   const previous = ledger.getReservation(requestId)
   if (!previous) {
