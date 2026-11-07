@@ -35,33 +35,39 @@ type DecisionEditorProps = {
   subject: HubHumanDecision['subject']
   subjectId: string
   busy: boolean
+  mode?: 'decide' | 'revoke'
   onDecide: (subject: HubHumanDecision['subject'], subjectId: string, verdict: HubHumanDecision['verdict'], justification: string) => Promise<boolean>
 }
 
 /** Keep each approval's justification beside its target. Never silently authorize execution. */
-function DecisionEditor({ subject, subjectId, busy, onDecide }: DecisionEditorProps): React.JSX.Element {
+function DecisionEditor({ subject, subjectId, busy, onDecide, mode = 'decide' }: DecisionEditorProps): React.JSX.Element {
   const [justification, setJustification] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const eligible = !busy && confirmed && justification.trim().length >= 5
   const noun = subject === 'plan' ? 'plan' : 'aprendizaje'
   return <div className="mt-2 space-y-2 rounded border border-border p-2">
-    <label className="block">Justificación de la decisión sobre este {noun}
+    <label className="block">{mode === 'revoke' ? 'Motivo de revocación' : `Justificación de la decisión sobre este ${noun}`}
       <textarea className={field} rows={2} value={justification} disabled={busy} maxLength={1000}
         onChange={e => setJustification(e.target.value)} placeholder="Qué evidencia revisaste y por qué decides esto"/>
     </label>
     <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} disabled={busy}
       onChange={e => setConfirmed(e.target.checked)}/>
-      Confirmo que revisé esta propuesta. La decisión no ejecuta agentes ni verifica CI
+      {mode === 'revoke' ? 'Confirmo que esta lección ya no debe reutilizarse. Su historial se conserva' : 'Confirmo que revisé esta propuesta. La decisión no ejecuta agentes ni verifica CI'}
     </label>
     <div className="flex flex-wrap gap-2">
-      <button className={action} type="button" disabled={!eligible}
-        onClick={() => void onDecide(subject, subjectId, 'accepted', justification)}>
-        Aprobar {noun}
-      </button>
-      <button className={action} type="button" disabled={!eligible}
-        onClick={() => void onDecide(subject, subjectId, 'rejected', justification)}>
-        Rechazar {noun}
-      </button>
+      {mode === 'revoke' ? <button className={action} type="button" disabled={!eligible}
+        onClick={() => void onDecide(subject, subjectId, 'revoked', justification)}>
+        Revocar aprendizaje
+      </button> : <>
+        <button className={action} type="button" disabled={!eligible}
+          onClick={() => void onDecide(subject, subjectId, 'accepted', justification)}>
+          Aprobar {noun}
+        </button>
+        <button className={action} type="button" disabled={!eligible}
+          onClick={() => void onDecide(subject, subjectId, 'rejected', justification)}>
+          Rechazar {noun}
+        </button>
+      </>}
     </div>
   </div>
 }
@@ -106,7 +112,9 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     memoryTags.every(tag => /^[a-z0-9_-]{3,32}$/.test(tag)) &&
     new Set(memoryTags).size === memoryTags.length
   const reusableMemoryValid = lesson.trim().length >= 8 && lesson.trim().length <= 220 &&
-    !/[<>]/.test(lesson) && memoryTagsValid &&
+    !/[<>]/.test(lesson) &&
+    ![...lesson.trim()].some(char => char.charCodeAt(0) < 32) &&
+    memoryTagsValid &&
     /^commit:[a-f0-9]{40}$/.test(memoryEvidence.trim())
   const eligibleMemoryCount = approvedHubTaskLessons(state, doc.projectId).length
   const currentPreview = preview?.projectId === doc.projectId && preview.revision === doc.revision ? preview : null
@@ -393,8 +401,11 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
           <p className="text-muted-foreground">Aplicación: {m.applicability}</p>
           <p className="text-muted-foreground">Evidencia declarada: {m.evidenceRef}</p>
           {decision ? <p className="mt-2 text-muted-foreground">
-            {decision.verdict === 'accepted' ? 'Aprendizaje aprobado manualmente' : 'Aprendizaje rechazado'} · {decision.justification}
-          </p> : <DecisionEditor subject="memory" subjectId={m.id} busy={busy} onDecide={decide}/>} 
+            {decision.verdict === 'accepted' ? 'Aprendizaje aprobado manualmente' :
+              decision.verdict === 'revoked' ? 'Aprendizaje revocado' : 'Aprendizaje rechazado'} · {decision.justification}
+          </p> : <DecisionEditor subject="memory" subjectId={m.id} busy={busy} onDecide={decide}/>}
+          {decision?.verdict === 'accepted' && <DecisionEditor key={`revoke-${m.id}`}
+            subject="memory" subjectId={m.id} mode="revoke" busy={busy} onDecide={decide}/>} 
         </div>
       })}
     </section>
