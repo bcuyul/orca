@@ -2,7 +2,7 @@
 import type { HubDocument } from './project-hub-types'
 import { hubAgentSoul, isHubAgentProfile, type HubAgentProfile } from './project-hub-agent-profiles'
 import { isHubDelegationTokenEstimate, type HubDelegationTokenEstimate } from './project-hub-delegation-quota'
-import { selectHubTaskLessons, type HubAttestedLesson } from './project-hub-task-memory'
+import { approvedHubTaskLessons, selectHubTaskLessons, type HubAttestedLesson } from './project-hub-task-memory'
 
 export const HUB_CLI_AGENTS = ['opencode', 'codex', 'claude', 'hermes'] as const
 export type HubCliAgent = (typeof HUB_CLI_AGENTS)[number]
@@ -244,12 +244,15 @@ export function renderHubWorkerPrompt(
     throw new Error('Story was removed')
   }
   // Hermes already loads profile-specific MEMORY.md on session start; never duplicate it.
-  const hints = memory && delegation.agent !== 'hermes'
-    ? selectHubTaskLessons({ lessons: memory.lessons, projectId: document.projectId,
-        profile: delegation.profile ?? 'forge',
-        taskText: [story.title, story.description, story.acceptance].join(' '),
-        nowMs: memory.nowMs })
-    : []
+  const hints = delegation.agent === 'hermes' ? [] : selectHubTaskLessons({
+    // Override is for controlled previews and tests; the default reuses
+    // durable Project Hub human-approved memories without a second store.
+    lessons: memory?.lessons ?? approvedHubTaskLessons(document.intelligence, document.projectId),
+    projectId: document.projectId,
+    profile: delegation.profile ?? 'forge',
+    taskText: [story.title, story.description, story.acceptance].join(' '),
+    nowMs: memory?.nowMs ?? Date.now()
+  })
   return [
     '# Project Hub: supervised CLI worker',
     `Project: ${document.projectId}`,
