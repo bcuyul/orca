@@ -84,6 +84,17 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
   await orcaPage.getByRole('spinbutton', { name: /Tokens estimados/ }).fill('15000')
   await orcaPage.getByRole('spinbutton', { name: 'Presupuesto de tokens del lote' })
     .fill('20000')
+  await orcaPage.getByRole('spinbutton', { name: 'Presupuesto de tokens del lote' })
+    .fill('14000')
+  await expect(orcaPage.getByRole('alert').filter({
+    hasText: 'El lote supera el presupuesto manual'
+  })).toBeVisible()
+  await expect(orcaPage.getByRole('button', { name: /Preparar 1 historia/ }))
+    .toBeDisabled()
+  await orcaPage.getByRole('spinbutton', { name: 'Presupuesto de tokens del lote' })
+    .fill('20000')
+  await expect(orcaPage.getByRole('button', { name: /Preparar 1 historia/ }))
+    .toBeEnabled()
   await expect(orcaPage.getByText('Total del lote:', { exact: false }))
     .toContainText('75% del presupuesto manual')
   await orcaPage.getByRole('button', { name: /Preparar 1 historia/ }).evaluate((element) => {
