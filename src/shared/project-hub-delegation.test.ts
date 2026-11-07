@@ -90,4 +90,27 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
     expect(parseHubLaunchReceipt({worktreeId:'wt1',outcome:{kind:'terminal',handle:'term1'}})).toEqual({worktreeId:'wt1',terminalHandle:'term1'})
     expect(renderHubWorkerPrompt(planned,planned.delegations![0])).toContain('Only modify files inside your new Orca worktree.')
   })
+  it('persists bounded advisory task tokens without turning them into execution permissions', () => {
+    const { doc, mint } = make()
+    const tokenEstimate = {
+      totalTokens: 12_500, promptTokens: 100, scenario: 'standard' as const, source: 'manual' as const
+    }
+    const result = prepareHubDelegation({
+      document: doc, storyIds: ['PH-001'], agent: 'opencode', reviewer: 'codex',
+      baseBranch: 'main', repoId: 'repoA', hostId: 'local',
+      now: '2026-11-07T10:00:00Z', tokenEstimates: { 'PH-001': tokenEstimate }, mint
+    })
+    expect(result.delegations?.[0].tokenEstimate).toEqual(tokenEstimate)
+    expect(isHubDocument(result)).toBe(true)
+    const row = result.delegations![0]
+    expect(isHubDelegationTransition([row], [{ ...row, tokenEstimate: {
+      ...tokenEstimate, totalTokens: 90_000
+    } }])).toBe(false)
+    expect(renderHubWorkerPrompt(result, row)).toContain('Advisory task tokens: 12500')
+    expect(renderHubWorkerPrompt(result, row)).toContain('not provider quota or authorization')
+    expect(isHubDelegationList([{ ...row, tokenEstimate: { ...tokenEstimate, totalTokens: -1 } }],
+      new Set(['PH-001']))).toBe(false)
+    expect(row.status).toBe('planned')
+  })
+
 })

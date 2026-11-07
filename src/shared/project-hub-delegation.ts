@@ -1,6 +1,7 @@
 /** Project Hub's durable CLI delegation contract. Project Hub never creates a second agent runtime. */
 import type { HubDocument } from './project-hub-types'
 import { hubAgentSoul, isHubAgentProfile, type HubAgentProfile } from './project-hub-agent-profiles'
+import { isHubDelegationTokenEstimate, type HubDelegationTokenEstimate } from './project-hub-delegation-quota'
 
 export const HUB_CLI_AGENTS = ['opencode', 'codex', 'claude', 'hermes'] as const
 export type HubCliAgent = (typeof HUB_CLI_AGENTS)[number]
@@ -12,6 +13,8 @@ export type HubDelegation = {
   reviewer: HubCliAgent | 'human'
   /** Optional for previously persisted delegations such as PH-001. */
   profile?: HubAgentProfile
+  /** Advisory task budget, immutable once prepared; not provider quota or launch authorization. */
+  tokenEstimate?: HubDelegationTokenEstimate
   operationId: string
   name: string
   baseBranch: string
@@ -57,6 +60,7 @@ export function isHubDelegationList(
       !(agent(row.reviewer) || row.reviewer === 'human') ||
       row.reviewer === row.agent ||
       (row.profile !== undefined && !isHubAgentProfile(row.profile)) ||
+      (row.tokenEstimate !== undefined && !isHubDelegationTokenEstimate(row.tokenEstimate)) ||
       !word(row.operationId, 46) ||
       !OP_ID.test(row.operationId) ||
       operations.has(row.operationId) ||
@@ -123,6 +127,9 @@ export function isHubDelegationTransition(
         return false
       }
     }
+    if (JSON.stringify(before.tokenEstimate ?? null) !== JSON.stringify(after.tokenEstimate ?? null)) {
+      return false
+    }
     if (before.worktreeId && before.worktreeId !== after.worktreeId) {
       return false
     }
@@ -144,6 +151,7 @@ export function prepareHubDelegation(input: {
   repoId: string
   hostId: string
   now: string
+  tokenEstimates?: Readonly<Record<string, HubDelegationTokenEstimate>>
   mint: () => { id: string; operationId: string }
 }): HubDocument {
   const { document, storyIds, agent: worker, reviewer, baseBranch, repoId, hostId, now, mint } =
@@ -181,9 +189,14 @@ export function prepareHubDelegation(input: {
 
     const tokens = mint()
     const name = `ph-${storyId.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 35)}-${tokens.id.slice(-6)}`
+    const tokenEstimate = input.tokenEstimates?.[storyId]
+    if (tokenEstimate !== undefined && !isHubDelegationTokenEstimate(tokenEstimate)) {
+      throw new Error('Invalid task token estimate')
+    }
     return {
       id: tokens.id,
       storyId,
+      ...(tokenEstimate ? { tokenEstimate } : {}),
       agent: worker,
       reviewer,
       profile,
@@ -215,6 +228,9 @@ export function renderHubWorkerPrompt(document: HubDocument, delegation: HubDele
     `Phase: ${story.phase}`,
     `Independent reviewer: ${delegation.reviewer}`,
     `Selected profile: ${delegation.profile ?? 'forge'}`,
+    ...(delegation.tokenEstimate ? [
+      `Advisory task tokens: ${delegation.tokenEstimate.totalTokens} (${delegation.tokenEstimate.source}; not provider quota or authorization)`
+    ] : []),
     'Repository-owned role guidance (SOUL.md; not an authorization or extra tool grant):',
     '<role-guidance>',
     hubAgentSoul(delegation.profile),
