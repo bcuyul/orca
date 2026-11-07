@@ -20,8 +20,8 @@ export function hubStageAdmission(input: HubStageIdentity): AdaptiveRequest {
     baseSha: input.baseSha, planId: input.planId, planSha: input.planSha
   })).digest('hex').slice(0, 40)
   return {
-    scopeId: 'hub-stage-' + digest,
-    requestId: 'hub-stage-request-' + digest,
+    scopeId: `hub-stage-${digest}`,
+    requestId: `hub-stage-request-${digest}`,
     projectId: input.projectId, repoId: input.repoId,
     hostId: input.hostId, baseSha: input.baseSha,
     planId: input.planId, planSha: input.planSha,
