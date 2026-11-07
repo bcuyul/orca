@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   HUB_MEMORY_MAX_CHARS, HUB_MEMORY_MAX_HINTS,
-  isHubAttestedLesson, selectHubTaskLessons, type HubAttestedLesson
+  approvedHubTaskLessons, isHubAttestedLesson, selectHubTaskLessons, type HubAttestedLesson
 } from './project-hub-task-memory'
+import { emptyHubIntelligence } from './project-hub-intelligence'
 
 const nowMs = Date.parse('2026-11-07T20:00:00Z')
 const base: HubAttestedLesson = {
@@ -71,5 +72,53 @@ describe('Project Hub attested memory selection (advisory only)', () => {
     expect(() => select(Array.from({ length: 41 }, (_, i) => ({
       ...base, id: `memory-${i}`
     })))).toThrow('invalid_task_memory_selection')
+  })
+})
+
+
+describe('Project Hub existing intelligence → compact task lessons', () => {
+  const memory = {
+    id: 'memo-sqlite', lesson: base.lesson,
+    applicability: 'profile=forge;tags=sqlite,persistence',
+    evidenceRef: base.evidenceRef,
+    createdAt: '2026-10-30T11:00:00Z'
+  }
+  const decision = {
+    id: 'decision-sqlite', subject: 'memory' as const,
+    subjectId: memory.id, verdict: 'accepted' as const,
+    justification: 'Human reviewed the referenced change',
+    createdAt: '2026-10-30T12:00:00Z'
+  }
+
+  it('reuses only an explicitly approved and constrained existing candidate', () => {
+    const state = emptyHubIntelligence()
+    state.memories = [memory]
+    expect(approvedHubTaskLessons(state, 'project:A')).toEqual([])
+    state.decisions = [decision]
+    expect(approvedHubTaskLessons(state, 'project:A')).toEqual([base])
+    expect(select(approvedHubTaskLessons(state, 'project:A'))).toEqual([base])
+  })
+
+  it('does not activate rejected, free-form, invalid-reference or wrong-profile memories', () => {
+    const state = emptyHubIntelligence()
+    state.memories = [memory]
+    state.decisions = [{ ...decision, verdict: 'rejected' }]
+    expect(approvedHubTaskLessons(state, 'project:A')).toEqual([])
+    state.decisions = [decision]
+    for (const candidate of [
+      { ...memory, applicability: 'Usar cuando falla SQLite' },
+      { ...memory, applicability: 'profile=data;tags=sqlite' },
+      { ...memory, evidenceRef: 'README.md' },
+      { ...memory, lesson: 'A'.repeat(300) }
+    ]) {
+      state.memories = [candidate]
+      const eligible = approvedHubTaskLessons(state, 'project:A')
+      if (candidate.applicability === 'profile=data;tags=sqlite') {
+        expect(select(eligible)).toEqual([])
+      } else {
+        expect(eligible).toEqual([])
+      }
+    }
+    expect(() => approvedHubTaskLessons(state, '')).toThrow('invalid_project_memory_source')
   })
 })
