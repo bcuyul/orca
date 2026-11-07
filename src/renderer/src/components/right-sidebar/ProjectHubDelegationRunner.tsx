@@ -30,6 +30,7 @@ type Props={
 }
 const names:Record<HubCliAgent,string>={opencode:'OpenCode CLI',codex:'Codex CLI',claude:'Claude Code CLI',hermes:'Hermes CLI'}
 const button='rounded-md border border-border bg-muted px-3 py-2 text-xs disabled:opacity-40'
+const freshTimestamp = (): string => new Date().toISOString()
 const statuses={
   planned:'Preparado, sin ejecutar',
   launching:'Lanzamiento reservado / resultado pendiente',
@@ -98,7 +99,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
       }
       const next=prepareHubDelegation({document,storyIds:selected,agent:worker,reviewer,profile,
         tokenEstimates,
-        baseBranch:branch,repoId,hostId,now:new Date().toISOString(),
+        baseBranch:branch,repoId,hostId,now:freshTimestamp(),
         mint:()=>{
           const uuid=createBrowserUuid().replaceAll('-','').toLowerCase()
           return {id:`hub-${uuid}`,operationId:createStructuredAgentSessionOperationId(createBrowserUuid)}
@@ -197,7 +198,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
           <label>Esfuerzo estimado
             <select className="mt-1 w-full rounded border border-border bg-background p-2"
               value={workloads[row.id]??'standard'} disabled={busy}
-              aria-label={row.id+' Esfuerzo estimado'}
+              aria-label={`${row.id} Esfuerzo estimado`}
               onChange={event=>setWorkloads(previous=>({
                 ...previous,[row.id]:event.target.value as HubTokenScenario
               }))}>
@@ -210,7 +211,7 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
             <input className="mt-1 w-full rounded border border-border bg-background p-2"
               type="number" min={1} max={HUB_MAX_TASK_TOKENS} step={1}
               value={manualEstimates[row.id]??''} disabled={busy}
-              aria-label={row.id+' Tokens estimados'}
+              aria-label={`${row.id} Tokens estimados`}
               placeholder={row.estimate?.totalTokens.toLocaleString('es-CL')??'Sin estimar'}
               onChange={event=>setManualEstimates(previous=>({
                 ...previous,[row.id]:event.target.value
@@ -221,12 +222,12 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
           <strong>{row.estimate.totalTokens.toLocaleString('es-CL')} tokens previstos</strong>
           {' '}· texto del encargo aprox. {row.estimate.promptTokens.toLocaleString('es-CL')}
           {' '}· {row.estimate.source==='manual'?'ajustado manualmente':'escenario orientativo'}
-          {tokenBudget!==null?' · '+String(shareOfPlannedTokenBudget(row.estimate.totalTokens,tokenBudget))+'% del presupuesto del lote':''}
+          {tokenBudget!==null?` · ${shareOfPlannedTokenBudget(row.estimate.totalTokens,tokenBudget)}% del presupuesto del lote`:''}
         </p>:<p role="alert" className="text-destructive">{row.error}</p>}
       </div>)}
       <p className="font-medium">
         Total del lote: {plannedTotal.toLocaleString('es-CL')} tokens orientativos
-        {budgetShare!==null?' · '+budgetShare+'% del presupuesto manual':''}
+        {budgetShare!==null?` · ${budgetShare}% del presupuesto manual`:''}
       </p>
       {budgetShare!==null&&budgetShare>100&&<p role="alert" className="text-destructive">
         La planificación supera el presupuesto indicado. Considera dividir o reducir tareas.
