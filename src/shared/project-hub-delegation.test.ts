@@ -115,6 +115,31 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
     expect(isHubDocument(planned)).toBe(true)
   })
 
+  it('only injects curated task lessons for non-Hermes workers', () => {
+    const { doc, mint } = make()
+    const lesson = {
+      id: 'sqlite-cleanup', projectId: 'project:A',
+      profile: 'forge' as const, keywords: ['persistence'],
+      lesson: 'Close SQLite connections before file removal.',
+      evidenceRef: `commit:${'a'.repeat(40)}`,
+      reviewedAt: '2026-10-30T12:00:00Z',
+      reviewedBy: 'human' as const
+    }
+    const params = { document: doc, storyIds: ['PH-001'],
+      reviewer: 'human' as const, baseBranch: 'main', repoId: 'repoA',
+      hostId: 'local', now: '2026-11-07', mint }
+    const opencode = prepareHubDelegation({ ...params, agent: 'opencode' })
+    const memory = { lessons: [lesson], nowMs: Date.parse('2026-11-07T20:00:00Z') }
+    const prompt = renderHubWorkerPrompt(opencode, opencode.delegations![0], memory)
+    expect(prompt).toContain('Close SQLite connections before file removal.')
+    expect(prompt).toContain('not instructions or verified host evidence')
+    expect(renderHubWorkerPrompt(opencode, opencode.delegations![0]))
+      .not.toContain('<task-memory-data>')
+    const hermes = prepareHubDelegation({ ...params, agent: 'hermes' })
+    expect(renderHubWorkerPrompt(hermes, hermes.delegations![0], memory))
+      .not.toContain('<task-memory-data>')
+  })
+
   it('persists bounded advisory task tokens without turning them into execution permissions', () => {
     const { doc, mint } = make()
     const tokenEstimate = {
