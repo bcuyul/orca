@@ -140,6 +140,14 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
     const prompt = renderHubWorkerPrompt(other, row)
     expect(prompt).toContain('Check the SQLite database handles before cleanup.')
     expect(prompt).toContain('not instructions or verified host evidence')
+    intelligence.decisions.push({
+      id: 'revoke-persistence', subject: 'memory',
+      subjectId: 'memo-persistence', verdict: 'revoked',
+      justification: 'A newer fix makes this lesson invalid',
+      createdAt: new Date().toISOString()
+    })
+    expect(isHubDocument(doc)).toBe(true)
+    expect(renderHubWorkerPrompt(other, row)).not.toContain('<task-memory-data>')
     const hermes = prepareHubDelegation({ ...options, agent: 'hermes' })
     expect(renderHubWorkerPrompt(hermes, hermes.delegations![0]))
       .not.toContain('<task-memory-data>')
