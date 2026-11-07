@@ -37,7 +37,7 @@ export function isHubAttestedLesson(value: unknown): value is HubAttestedLesson 
         !/^[a-zA-Z0-9_-]{3,32}$/.test(word)) ||
       typeof value.lesson !== 'string' || value.lesson.trim() !== value.lesson ||
       value.lesson.length < 8 || value.lesson.length > 220 ||
-      /[\x00-\x1f<>]/.test(value.lesson) ||
+      [...value.lesson].some(char => char.charCodeAt(0) < 32 || char === '<' || char === '>') ||
       typeof value.evidenceRef !== 'string' ||
       !/^commit:[a-f0-9]{40}$/.test(value.evidenceRef) ||
       value.reviewedBy !== 'human' ||
