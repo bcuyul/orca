@@ -75,15 +75,26 @@ test('Project Hub opens in isolated Electron, persists backlog and keeps CLI lau
     intervals: [250, 500, 1_000],
     message: 'Project Hub Orquestación tab must display the execution quarantine'
   }).toBe(true)
+  await expect(orcaPage.getByRole('region', {
+    name: 'Tokens y cuota estimados para delegación'
+  })).toBeVisible()
   await orcaPage.getByRole('checkbox').first().evaluate((element) => {
     (element as HTMLInputElement).click()
   })
+  await orcaPage.getByRole('spinbutton', { name: /Tokens estimados/ }).fill('15000')
+  await orcaPage.getByRole('spinbutton', { name: 'Presupuesto de tokens del lote' })
+    .fill('20000')
+  await expect(orcaPage.getByText('Total del lote:', { exact: false }))
+    .toContainText('75% del presupuesto manual')
   await orcaPage.getByRole('button', { name: /Preparar 1 historia/ }).evaluate((element) => {
     (element as HTMLButtonElement).click()
   })
-  await expect(orcaPage.getByText('Lote preparado y guardado.')).toBeVisible({
+  await expect(orcaPage.getByText('Lote y estimaciones de tokens guardados.', { exact: false }))
+    .toBeVisible({
     timeout: 15_000
   })
+  await expect(orcaPage.getByText('Tokens planeados: 15.000', { exact: false }))
+    .toBeVisible()
   await expect(orcaPage.getByRole('button', {
     name: /Iniciar y enviar instrucciones/
   })).toBeDisabled()
