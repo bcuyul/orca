@@ -8,7 +8,7 @@ Este incremento añade un planificador de carácter orientativo a la pestaña Or
 - Muestra porcentajes consumidos y restantes por ventana temporal disponible (sesión, semana y mes). Si falta la fuente, el host no coincide, los valores son obsoletos o el proveedor es OpenCode/Hermes sin cuenta universal, indica cuota no verificable.
 - Una cuota temporal en porcentaje no se puede convertir automáticamente a tokens disponibles. Nunca confunde tokens de contexto con capacidad de suscripción.
 - Estima cada tarea con un piso aproximado del texto (caracteres / 4) más un escenario de esfuerzo explícito: pequeño +6.000, mediano +18.000 o grande +45.000 tokens. El usuario puede modificar el total por tarea.
-- Un presupuesto opcional del lote, introducido por el usuario, permite ver qué porcentaje representa cada tarea y cuánto suma el lote.
+- Un presupuesto opcional del lote, introducido por el usuario, permite ver qué porcentaje representa cada tarea y cuánto suma el lote. Si las estimaciones superan ese presupuesto, se bloquea **preparar el lote** (solo planificación); no impone límites a un agente en ejecución.
 - Al preparar, guarda un objeto tokenEstimate por delegación con totalTokens, promptTokens, scenario y source; el campo es inmutable como el resto de la identidad de la delegación.
 - No mide gasto real, no ejecuta agentes, no impone un límite de runtime y no autoriza sesiones.
 
