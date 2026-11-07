@@ -90,4 +90,52 @@ describe('Hermes-inspired Project Hub CLI delegation',()=>{
     expect(parseHubLaunchReceipt({worktreeId:'wt1',outcome:{kind:'terminal',handle:'term1'}})).toEqual({worktreeId:'wt1',terminalHandle:'term1'})
     expect(renderHubWorkerPrompt(planned,planned.delegations![0])).toContain('Only modify files inside your new Orca worktree.')
   })
+  it('rejects batches over the manual token budget before persisting any delegation', () => {
+    const { doc, mint } = make()
+    const estimate = {
+      totalTokens: 12_500, promptTokens: 100,
+      scenario: 'standard' as const, source: 'manual' as const
+    }
+    const params = {
+      document: doc, storyIds: ['PH-001'], agent: 'opencode' as const,
+      reviewer: 'codex' as const, baseBranch: 'main', repoId: 'repoA',
+      hostId: 'local', now: '2026-11-07T10:00:00Z', mint,
+      tokenEstimates: { 'PH-001': estimate }
+    }
+    expect(() => prepareHubDelegation({ ...params, tokenBudget: 12_499 }))
+      .toThrow(/exceed manual token budget/)
+    expect(() => prepareHubDelegation({ ...params, tokenBudget: 0 }))
+      .toThrow(/Invalid manual token budget/)
+    expect(() => prepareHubDelegation({
+      ...params, tokenEstimates: undefined, tokenBudget: 20_000
+    })).toThrow(/requires valid estimates/)
+    expect(doc.delegations).toBeUndefined()
+    const planned = prepareHubDelegation({ ...params, tokenBudget: 12_500 })
+    expect(planned.delegations?.[0].tokenEstimate).toEqual(estimate)
+    expect(isHubDocument(planned)).toBe(true)
+  })
+
+  it('persists bounded advisory task tokens without turning them into execution permissions', () => {
+    const { doc, mint } = make()
+    const tokenEstimate = {
+      totalTokens: 12_500, promptTokens: 100, scenario: 'standard' as const, source: 'manual' as const
+    }
+    const result = prepareHubDelegation({
+      document: doc, storyIds: ['PH-001'], agent: 'opencode', reviewer: 'codex',
+      baseBranch: 'main', repoId: 'repoA', hostId: 'local',
+      now: '2026-11-07T10:00:00Z', tokenEstimates: { 'PH-001': tokenEstimate }, mint
+    })
+    expect(result.delegations?.[0].tokenEstimate).toEqual(tokenEstimate)
+    expect(isHubDocument(result)).toBe(true)
+    const row = result.delegations![0]
+    expect(isHubDelegationTransition([row], [{ ...row, tokenEstimate: {
+      ...tokenEstimate, totalTokens: 90_000
+    } }])).toBe(false)
+    expect(renderHubWorkerPrompt(result, row)).toContain('Advisory task tokens: 12500')
+    expect(renderHubWorkerPrompt(result, row)).toContain('not provider quota or authorization')
+    expect(isHubDelegationList([{ ...row, tokenEstimate: { ...tokenEstimate, totalTokens: -1 } }],
+      new Set(['PH-001']))).toBe(false)
+    expect(row.status).toBe('planned')
+  })
+
 })

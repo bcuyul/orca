@@ -63,7 +63,8 @@ test('Project Hub accepts native mouse clicks while refusing CLI execution @proj
   await expect(storyCheckbox).toBeChecked()
   await expect(prepareButton).toBeEnabled()
   await pointerClick(orcaPage, prepareButton)
-  await expect(orcaPage.getByText('Lote preparado y guardado.', { exact: false })).toBeVisible()
+  await expect(orcaPage.getByText('Lote y estimaciones de tokens guardados.', { exact: false })).toBeVisible()
+  await expect(orcaPage.getByText('Tokens planeados:', { exact: false })).toBeVisible()
   await expect(orcaPage.getByRole('button', {
     name: /Iniciar y enviar instrucciones/
   })).toBeDisabled()

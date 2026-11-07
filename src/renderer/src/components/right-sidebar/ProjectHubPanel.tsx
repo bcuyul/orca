@@ -156,7 +156,8 @@ export default function ProjectHubPanel(): React.JSX.Element {
         <ProjectHubNativeAgentPreview doc={shown} worktreeId={worktree?.id??''}
           hostId={worktree?.hostId??''} gitHead={worktree?.head??''}/>
         <ProjectHubMathPreview doc={shown}/>
-        <ProjectHubDelegationRunner document={shown} repoId={worktree?.repoId??''}
+        <ProjectHubDelegationRunner key={`${projectId}:${worktree?.id ?? ''}`}
+          document={shown} repoId={worktree?.repoId??''}
           hostId={worktree?.hostId??''} branch={worktree?.branch??''}
           onSave={save}/>
       </div>}
