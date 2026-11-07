@@ -6,7 +6,8 @@ import { projectHostSetupProjectionFromRepos } from '../../shared/project-host-s
 import { resolveHubProjectId } from '../../shared/project-hub-project-id'
 import { projectHubLocalGitSnapshot } from '../../shared/project-hub-git-assist'
 import { stageHubNativePlan } from '../project-hub/supervised-native-plan-stage'
-import type { HubStageNativePlanRequest } from '../../shared/project-hub-supervised-stage'
+import { inspectHubNativeStages } from '../project-hub/native-stage-recovery'
+import { isHubStageNativePlanRequest, type HubStageNativePlanRequest } from '../../shared/project-hub-supervised-stage'
 import type { Store } from '../persistence/loading-store/store'
 import { getProjectIdentityKey } from '../../shared/project-host-setup-projection'
 import { isHubDocument } from '../../shared/project-hub-types'
@@ -48,6 +49,30 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
     }
     return buildNativePlanPreview(db.read(projectId), data.planId, data.expectedRevision as number)
   })
+  /** Verify catalog ownership without requiring a clean or unchanged Git HEAD.
+   * Recovery must remain available after a commit, dirty worktree or app restart.
+   */
+  const localHubWorktree = (projectId: string, worktreeId: string) => {
+    const parsed = parseRuntimeWorktreeId(worktreeId)
+    if (!parsed) { throw new Error('Invalid registered Git worktree identity') }
+    const repo = store.getRepo(parsed.repoId)
+    if (!repo || getRepoExecutionHostId(repo) !== LOCAL_EXECUTION_HOST_ID) {
+      throw new Error('Only a locally registered repository may access native Run state')
+    }
+    const projection = projectHostSetupProjectionFromRepos(store.getRepos())
+    const resolvedProjectId = resolveHubProjectId({
+      repoId: parsed.repoId, hostId: LOCAL_EXECUTION_HOST_ID,
+      projects: [...store.getProjects(), ...projection.projects],
+      setups: projection.setups, fallback: getProjectIdentityKey(repo)
+    })
+    if (resolvedProjectId !== projectId) {
+      throw new Error('Worktree is not owned by the selected Project Hub project')
+    }
+    return {
+      worktreeId, repoId: parsed.repoId, projectId,
+      hostId: LOCAL_EXECUTION_HOST_ID
+    }
+  }
   // A host-native dialog is the approval boundary; no renderer boolean grants
   // orchestration authority. Only quarantined Run/Task rows may be written here.
   let stageInFlight = false
@@ -69,32 +94,14 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
         readProject: (id) => db.read(authorize(event.sender.id, id)),
         getOrchestrationDb: () => runtime.getOrchestrationDb(),
         inspectWorktree: async (worktreeId) => {
-          const selector = `id:${worktreeId}`
-          const parsed = parseRuntimeWorktreeId(worktreeId)
-          if (!parsed) { throw new Error('Invalid registered Git worktree identity') }
-          const repo = store.getRepo(parsed.repoId)
-          if (!repo || getRepoExecutionHostId(repo) !== LOCAL_EXECUTION_HOST_ID) {
-            throw new Error('Only a locally registered repository may stage a Run')
-          }
-          const projection = projectHostSetupProjectionFromRepos(store.getRepos())
-          const resolvedProjectId = resolveHubProjectId({
-            repoId: parsed.repoId,
-            hostId: LOCAL_EXECUTION_HOST_ID,
-            projects: [...store.getProjects(), ...projection.projects],
-            setups: projection.setups, fallback: getProjectIdentityKey(repo)
-          })
-          if (resolvedProjectId !== projectId) {
-            throw new Error('Worktree is not owned by the selected Project Hub project')
-          }
+          const identity = localHubWorktree(projectId, worktreeId)
+          const selector = 'id:' + worktreeId
           const [status, history] = await Promise.all([
             runtime.getRuntimeGitStatus(selector),
             runtime.getRuntimeGitHistory(selector, { limit: 1 })
           ])
           const git = projectHubLocalGitSnapshot(status, history)
-          return {
-            worktreeId, repoId: parsed.repoId, projectId,
-            hostId: LOCAL_EXECUTION_HOST_ID, baseSha: git.headSha
-          }
+          return { ...identity, baseSha: git.headSha }
         },
         confirmInHostWindow: async ({ preview, worktree }) => {
           if (window.isDestroyed() || window.webContents.id !== trustedWindowId) {
@@ -119,6 +126,21 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
         }
       })
     } finally { stageInFlight = false }
+  })
+
+  // Read-only recovery; no Git cleanliness required, no host scope creation.
+  ipcMain.handle('projectHub:inspectStagedNativePlan', (event, raw: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame ||
+        !isHubStageNativePlanRequest(raw)) {
+      throw new Error('Invalid native Run inspection origin or request')
+    }
+    const projectId = authorize(event.sender.id, raw.projectId)
+    const ownership = localHubWorktree(projectId, raw.worktreeId)
+    const preview = buildNativePlanPreview(db.read(projectId), raw.planId, raw.expectedRevision)
+    if (preview.planSha !== raw.planSha) {
+      throw new Error('Stale Project Hub plan; reload before inspection')
+    }
+    return inspectHubNativeStages(runtime.getOrchestrationDb(), preview, ownership)
   })
 
 }

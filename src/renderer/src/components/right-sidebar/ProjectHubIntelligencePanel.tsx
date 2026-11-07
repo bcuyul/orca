@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { HubDocument } from '../../../../shared/project-hub-types'
 import type { NativePlanPreview } from '../../../../shared/native-plan-preview'
-import type { HubStagedNativePlan } from '../../../../shared/project-hub-supervised-stage'
+import type { HubStagedNativePlan, HubNativeStageRecovery } from '../../../../shared/project-hub-supervised-stage'
 import {
   emptyHubIntelligence, isHubIntelligence, approvedHubMemories,
   type HubIntelligence, type HubHumanDecision, type HubBlocker,
@@ -69,6 +69,12 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [notice, setNotice] = useState('')
   const [preview, setPreview] = useState<NativePlanPreview | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
+  const [recoveryError, setRecoveryError] = useState('')
+  const [recovery, setRecovery] = useState<{
+    projectId: string; revision: number; planSha: string; worktreeId: string;
+    result: HubNativeStageRecovery
+  } | null>(null)
   const [stageBusy, setStageBusy] = useState(false)
   const [staged, setStaged] = useState<{revision: number; receipt: HubStagedNativePlan} | null>(null)
   const [previewError, setPreviewError] = useState('')
@@ -93,6 +99,33 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const reviewPlan = state.plans.find(p => p.id === qaPlan)
   const decisions = new Map(state.decisions.map(d => [`${d.subject}:${d.subjectId}`, d] as const))
   const currentPreview = preview?.projectId === doc.projectId && preview.revision === doc.revision ? preview : null
+  const currentRecovery = currentPreview && recovery?.projectId === doc.projectId &&
+    recovery.revision === doc.revision && recovery.planSha === currentPreview.planSha &&
+    recovery.worktreeId === gitContext?.worktreeId ? recovery.result : null
+  async function inspectNativeRecovery(fresh: NativePlanPreview): Promise<void> {
+    if (!gitContext || gitContext.hostId !== 'local') {
+      setRecovery(null)
+      return
+    }
+    setRecoveryBusy(true)
+    setRecoveryError('')
+    try {
+      const result = await window.api.projectHub.inspectStagedNativePlan({
+        projectId: fresh.projectId, planId: fresh.planId,
+        expectedRevision: fresh.revision, planSha: fresh.planSha,
+        worktreeId: gitContext.worktreeId
+      })
+      setRecovery({
+        projectId: fresh.projectId, revision: fresh.revision,
+        planSha: fresh.planSha, worktreeId: gitContext.worktreeId, result
+      })
+    } catch (error) {
+      setRecovery(null)
+      setRecoveryError(String(error))
+    } finally {
+      setRecoveryBusy(false)
+    }
+  }
   async function persist(next: HubIntelligence, success: string): Promise<boolean> {
     if (!isHubIntelligence(next)) { setNotice('Registro inválido: revisa IDs, DAG y evidencia.'); return false }
     const ok = await onSave({ ...doc, intelligence: next })
@@ -102,11 +135,13 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   async function inspectNativePlan(planId: string): Promise<void> {
     setPreviewBusy(true)
     setPreviewError('')
+    setRecovery(null)
     try {
       const response = await window.api.projectHub.previewNativePlan({
         projectId: doc.projectId, planId, expectedRevision: doc.revision
       })
       setPreview(response)
+      await inspectNativeRecovery(response)
     } catch (error) {
       setPreview(null)
       setPreviewError(String(error))
@@ -132,6 +167,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
         setNotice(result.reused
           ? 'Run existente reconciliado; no hay tareas duplicadas.'
           : 'Run y tareas nativos creados. El Dispatch sigue bloqueado.')
+        await inspectNativeRecovery(preview)
       }
     } catch (error) {
       setNotice(`Materialización rechazada: ${String(error)}. No se lanzarán agentes.`)
@@ -251,10 +287,38 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
             </li>)}</ol>
             <p className="font-medium">Vista previa sin efectos. Materializar crea solo Run/Task, nunca Dispatch.</p>
             {currentPreview.approval === 'accepted' && <button className={action} type="button"
-              disabled={stageBusy || busy || !gitContext || gitContext.hostId !== 'local'}
+              disabled={stageBusy || busy || recoveryBusy || !!recoveryError ||
+                currentRecovery?.status === 'needs_reconciliation' ||
+                !gitContext || gitContext.hostId !== 'local'}
               onClick={() => void stageNativePlan(currentPreview)}>
               {stageBusy ? 'Validando y solicitando aprobación…' : 'Crear Run/Task nativo (supervisado)'}
             </button>}
+            {gitContext?.hostId === 'local' && <button className={action} type="button"
+              disabled={stageBusy || busy || recoveryBusy}
+              onClick={() => void inspectNativeRecovery(currentPreview)}>
+              {recoveryBusy ? 'Conciliando SQLite…' : 'Reconciliar Run/Task desde el host (solo lectura)'}
+            </button>}
+            {currentRecovery?.status === 'not_found' &&
+              <p className="text-muted-foreground">No hay Run nativo registrado para este plan y worktree.</p>}
+            {currentRecovery?.status === 'needs_reconciliation' &&
+              <p role="alert" className="font-semibold text-destructive">
+                Operación anterior incierta: no crear otro Run. Requiere conciliación del host.
+              </p>}
+            {currentRecovery?.entries.map(entry => <div key={entry.baseSha}
+              className="rounded border border-border p-2" role="status">
+              <p>Recibo de SQLite: {entry.disposition === 'completed_verified'
+                ? 'Run confirmado' : 'Conciliación manual requerida'} · {entry.state}</p>
+              <p>HEAD original: <code>{entry.baseSha.slice(0, 12)}</code></p>
+              <p>Run: <code>{entry.runId ?? 'No confirmado'}</code> · {entry.recordedTaskCount} tareas registradas</p>
+              <p>Dispatch observados: {entry.dispatchCount} · evidencia: {entry.evidence}</p>
+              {entry.tasks && <ul className="ml-4 list-disc">
+                {Object.entries(entry.tasks).map(([hubId, nativeId]) =>
+                  <li key={hubId}>{hubId} → <code>{nativeId}</code></li>)}
+              </ul>}
+            </div>)}
+            {recoveryError && <p role="alert" className="text-destructive">
+              No se pudo consultar la identidad nativa: {recoveryError}
+            </p>}
             {staged?.revision === doc.revision && staged.receipt.planId === p.id &&
               <div className="rounded border border-border p-2" role="status">
                 <p>Run real: <code>{staged.receipt.runId}</code> · {staged.receipt.reused ? 'reutilizado' : 'nuevo'}</p>

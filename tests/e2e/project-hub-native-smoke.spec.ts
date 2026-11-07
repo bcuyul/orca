@@ -214,6 +214,8 @@ test('Atlas DAG approval → trusted IPC preview without a CLI launch @project-h
   await expect(orcaPage.getByText('Vista previa del Run de Orca')).toBeVisible()
   await expect(orcaPage.getByText('Vista previa sin efectos. Materializar crea solo Run/Task, nunca Dispatch.'))
     .toBeVisible()
+  await expect(orcaPage.getByRole('button', { name: 'Reconciliar Run/Task desde el host (solo lectura)' }))
+    .toBeVisible()
   await expect(orcaPage.getByRole('button', { name: 'Crear Run/Task nativo (supervisado)' }))
     .toBeVisible()
   const order = await orcaPage.locator('div[role="status"] ol li').allTextContents()
