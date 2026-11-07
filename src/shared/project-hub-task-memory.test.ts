@@ -95,8 +95,8 @@ describe('Project Hub existing intelligence → compact task lessons', () => {
     state.memories = [memory]
     expect(approvedHubTaskLessons(state, 'project:A')).toEqual([])
     state.decisions = [decision]
-    expect(approvedHubTaskLessons(state, 'project:A')).toEqual([base])
-    expect(select(approvedHubTaskLessons(state, 'project:A'))).toEqual([base])
+    expect(approvedHubTaskLessons(state, 'project:A')).toEqual([{ ...base, id: memory.id }])
+    expect(select(approvedHubTaskLessons(state, 'project:A'))).toEqual([{ ...base, id: memory.id }])
   })
 
   it('does not activate rejected, free-form, invalid-reference or wrong-profile memories', () => {
