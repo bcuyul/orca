@@ -68,6 +68,8 @@ describe('Project Hub attested memory selection (advisory only)', () => {
     expect(() => select([base], { nowMs: Number.NaN })).toThrow('invalid_task_memory_selection')
     expect(() => select([base], { taskText: 'x'.repeat(16_001) }))
       .toThrow('invalid_task_memory_selection')
-    expect(() => select(Array(41).fill(base))).toThrow('invalid_task_memory_selection')
+    expect(() => select(Array.from({ length: 41 }, (_, i) => ({
+      ...base, id: `memory-${i}`
+    })))).toThrow('invalid_task_memory_selection')
   })
 })
