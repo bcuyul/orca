@@ -152,6 +152,8 @@ export function prepareHubDelegation(input: {
   hostId: string
   now: string
   tokenEstimates?: Readonly<Record<string, HubDelegationTokenEstimate>>
+  /** Optional hard limit on preparing the planned batch; never a runtime token cap. */
+  tokenBudget?: number
   mint: () => { id: string; operationId: string }
 }): HubDocument {
   const { document, storyIds, agent: worker, reviewer, baseBranch, repoId, hostId, now, mint } =
@@ -172,6 +174,21 @@ export function prepareHubDelegation(input: {
   const branch = baseBranch.replace(/^refs\/heads\//, '')
   if (!branch || branch.length > 240 || branch.startsWith('-')) {
     throw new Error('Invalid base branch')
+  }
+
+  if (input.tokenBudget !== undefined) {
+    if (!Number.isSafeInteger(input.tokenBudget) ||
+        input.tokenBudget < 1 || input.tokenBudget > 50_000_000) {
+      throw new Error('Invalid manual token budget')
+    }
+    const estimates = storyIds.map(id => input.tokenEstimates?.[id])
+    if (estimates.some(value => !value || !isHubDelegationTokenEstimate(value))) {
+      throw new Error('Token budget requires valid estimates for all selected stories')
+    }
+    const total = estimates.reduce((sum, value) => sum + (value?.totalTokens ?? 0), 0)
+    if (total > input.tokenBudget) {
+      throw new Error('Planned task tokens exceed manual token budget')
+    }
   }
 
   const previous = document.delegations ?? []
