@@ -12,6 +12,8 @@ import {
   parseAtlasPlanJson, renderAtlasPlanningPrompt, renderQaReviewPrompt
 } from '../../../../shared/project-hub-intelligence-prompts'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { HUB_AGENT_PROFILES, type HubAgentProfile } from '../../../../shared/project-hub-agent-profiles'
+import { approvedHubTaskLessons } from '../../../../shared/project-hub-task-memory'
 import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
 
@@ -33,33 +35,39 @@ type DecisionEditorProps = {
   subject: HubHumanDecision['subject']
   subjectId: string
   busy: boolean
+  mode?: 'decide' | 'revoke'
   onDecide: (subject: HubHumanDecision['subject'], subjectId: string, verdict: HubHumanDecision['verdict'], justification: string) => Promise<boolean>
 }
 
 /** Keep each approval's justification beside its target. Never silently authorize execution. */
-function DecisionEditor({ subject, subjectId, busy, onDecide }: DecisionEditorProps): React.JSX.Element {
+function DecisionEditor({ subject, subjectId, busy, onDecide, mode = 'decide' }: DecisionEditorProps): React.JSX.Element {
   const [justification, setJustification] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const eligible = !busy && confirmed && justification.trim().length >= 5
   const noun = subject === 'plan' ? 'plan' : 'aprendizaje'
   return <div className="mt-2 space-y-2 rounded border border-border p-2">
-    <label className="block">Justificación de la decisión sobre este {noun}
+    <label className="block">{mode === 'revoke' ? 'Motivo de revocación' : `Justificación de la decisión sobre este ${noun}`}
       <textarea className={field} rows={2} value={justification} disabled={busy} maxLength={1000}
         onChange={e => setJustification(e.target.value)} placeholder="Qué evidencia revisaste y por qué decides esto"/>
     </label>
     <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} disabled={busy}
       onChange={e => setConfirmed(e.target.checked)}/>
-      Confirmo que revisé esta propuesta. La decisión no ejecuta agentes ni verifica CI
+      {mode === 'revoke' ? 'Confirmo que esta lección ya no debe reutilizarse. Su historial se conserva' : 'Confirmo que revisé esta propuesta. La decisión no ejecuta agentes ni verifica CI'}
     </label>
     <div className="flex flex-wrap gap-2">
-      <button className={action} type="button" disabled={!eligible}
-        onClick={() => void onDecide(subject, subjectId, 'accepted', justification)}>
-        Aprobar {noun}
-      </button>
-      <button className={action} type="button" disabled={!eligible}
-        onClick={() => void onDecide(subject, subjectId, 'rejected', justification)}>
-        Rechazar {noun}
-      </button>
+      {mode === 'revoke' ? <button className={action} type="button" disabled={!eligible}
+        onClick={() => void onDecide(subject, subjectId, 'revoked', justification)}>
+        Revocar aprendizaje
+      </button> : <>
+        <button className={action} type="button" disabled={!eligible}
+          onClick={() => void onDecide(subject, subjectId, 'accepted', justification)}>
+          Aprobar {noun}
+        </button>
+        <button className={action} type="button" disabled={!eligible}
+          onClick={() => void onDecide(subject, subjectId, 'rejected', justification)}>
+          Rechazar {noun}
+        </button>
+      </>}
     </div>
   </div>
 }
@@ -86,6 +94,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [recommendation, setRecommendation] = useState('')
   const [lesson, setLesson] = useState('')
   const [applicability, setApplicability] = useState('')
+  const [memoryProfile, setMemoryProfile] = useState<HubAgentProfile | 'all'>('forge')
   const [memoryEvidence, setMemoryEvidence] = useState('')
   const [qaPlan, setQaPlan] = useState('')
   const [qaTask, setQaTask] = useState('')
@@ -98,6 +107,16 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const blockPlan = state.plans.find(p => p.id === planForBlocker)
   const reviewPlan = state.plans.find(p => p.id === qaPlan)
   const decisions = new Map(state.decisions.map(d => [`${d.subject}:${d.subjectId}`, d] as const))
+  const memoryTags = applicability.split(',').map(tag => tag.trim().toLowerCase())
+  const memoryTagsValid = memoryTags.length >= 1 && memoryTags.length <= 8 &&
+    memoryTags.every(tag => /^[a-z0-9_-]{3,32}$/.test(tag)) &&
+    new Set(memoryTags).size === memoryTags.length
+  const reusableMemoryValid = lesson.trim().length >= 8 && lesson.trim().length <= 220 &&
+    !/[<>]/.test(lesson) &&
+    ![...lesson.trim()].some(char => char.charCodeAt(0) < 32) &&
+    memoryTagsValid &&
+    /^commit:[a-f0-9]{40}$/.test(memoryEvidence.trim())
+  const eligibleMemoryCount = approvedHubTaskLessons(state, doc.projectId).length
   const currentPreview = preview?.projectId === doc.projectId && preview.revision === doc.revision ? preview : null
   const currentRecovery = currentPreview && recovery?.projectId === doc.projectId &&
     recovery.revision === doc.revision && recovery.planSha === currentPreview.planSha &&
@@ -204,7 +223,8 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   }
   async function addMemory(): Promise<void> {
     const candidate: HubMemoryCandidate = {
-      id: newId('memo'), lesson: lesson.trim(), applicability: applicability.trim(),
+      id: newId('memo'), lesson: lesson.trim(),
+      applicability: `profile=${memoryProfile};tags=${memoryTags.join(',')}`,
       evidenceRef: memoryEvidence.trim(), createdAt: stamp()
     }
     if (await persist({ ...state, memories: [...state.memories, candidate] },
@@ -355,14 +375,24 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     <ProjectHubHandoffPanel doc={doc} busy={busy} onSave={onSave} gitContext={gitContext}/>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Forge · memoria con evidencias</h4>
-      <p>{approvedHubMemories(state).length} memorias aprobadas · {state.memories.length} propuestas</p>
-      <textarea className={field} disabled={busy} value={lesson} maxLength={1500}
+      <p>{approvedHubMemories(state).length} memorias aprobadas · {eligibleMemoryCount} reutilizables en contexto acotado · {state.memories.length} propuestas</p>
+      <p className="text-muted-foreground">Solo las lecciones aprobadas manualmente, con rol, etiquetas y commit declarado, podrán aparecer en prompts de otros CLI. No verifica Git ni sincroniza Hermes.</p>
+      <textarea className={field} disabled={busy} value={lesson} maxLength={220}
         onChange={e => setLesson(e.target.value)} placeholder="Lección aprendida (sin secretos)"/>
-      <input className={field} disabled={busy} value={applicability} maxLength={800}
-        onChange={e => setApplicability(e.target.value)} placeholder="Cuándo aplicar esta lección"/>
-      <input className={field} disabled={busy} value={memoryEvidence} maxLength={600}
-        onChange={e => setMemoryEvidence(e.target.value)} placeholder="Archivo, test, commit o evidencia verificable"/>
-      <button className={action} type="button" disabled={busy||lesson.trim().length<5||applicability.trim().length<5||memoryEvidence.trim().length<5}
+      <label className="block">Perfil que podrá reutilizarla
+        <select aria-label="Perfil de memoria" className={field} disabled={busy}
+          value={memoryProfile} onChange={e => setMemoryProfile(e.target.value as HubAgentProfile | 'all')}>
+          <option value="all">Todos los perfiles del proyecto</option>
+          {HUB_AGENT_PROFILES.map(profile => <option key={profile} value={profile}>{profile}</option>)}
+        </select>
+      </label>
+      <input className={field} disabled={busy} value={applicability} maxLength={255}
+        onChange={e => setApplicability(e.target.value)}
+        placeholder="Etiquetas, separadas por comas (ej. sqlite,persistence)"/>
+      <input className={field} disabled={busy} value={memoryEvidence} maxLength={47}
+        onChange={e => setMemoryEvidence(e.target.value)}
+        placeholder="commit:SHA de 40 caracteres (declarado)"/>
+      <button className={action} type="button" disabled={busy||!reusableMemoryValid}
         onClick={() => void addMemory()}>Proponer aprendizaje</button>
       {state.memories.map(m => {
         const decision = decisions.get(`memory:${m.id}`)
@@ -371,8 +401,11 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
           <p className="text-muted-foreground">Aplicación: {m.applicability}</p>
           <p className="text-muted-foreground">Evidencia declarada: {m.evidenceRef}</p>
           {decision ? <p className="mt-2 text-muted-foreground">
-            {decision.verdict === 'accepted' ? 'Aprendizaje aprobado manualmente' : 'Aprendizaje rechazado'} · {decision.justification}
-          </p> : <DecisionEditor subject="memory" subjectId={m.id} busy={busy} onDecide={decide}/>} 
+            {decision.verdict === 'accepted' ? 'Aprendizaje aprobado manualmente' :
+              decision.verdict === 'revoked' ? 'Aprendizaje revocado' : 'Aprendizaje rechazado'} · {decision.justification}
+          </p> : <DecisionEditor subject="memory" subjectId={m.id} busy={busy} onDecide={decide}/>}
+          {decision?.verdict === 'accepted' && <DecisionEditor key={`revoke-${m.id}`}
+            subject="memory" subjectId={m.id} mode="revoke" busy={busy} onDecide={decide}/>} 
         </div>
       })}
     </section>

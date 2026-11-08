@@ -63,6 +63,43 @@ describe('Agent intelligence contracts', () => {
     expect(isHubIntelligence({...accepted, decisions:[...accepted.decisions,{...accepted.decisions[0],id:'decision-b'}]})).toBe(false)
   })
 
+  it('revokes an accepted lesson once without rewriting the evidence history', () => {
+    const memory = { id:'memo-safety', lesson:'Never retry an uncertain launch without reconciliation',
+      applicability:'profile=flow;tags=launch,retry', evidenceRef:`commit:${'a'.repeat(40)}`,
+      createdAt:at }
+    const approval = { id:'accept-memo', subject:'memory' as const,
+      subjectId:memory.id, verdict:'accepted' as const,
+      justification:'Review covered the actual recovery behavior', createdAt:at }
+    const revoke = { id:'revoke-memo', subject:'memory' as const,
+      subjectId:memory.id, verdict:'revoked' as const,
+      justification:'Later correction invalidated the original lesson',
+      createdAt:'2026-11-07T12:00:00Z' }
+    const initial = { ...emptyHubIntelligence(), memories:[memory] }
+    const accepted = { ...initial, decisions:[approval] }
+    const revoked = { ...initial, decisions:[approval, revoke] }
+    expect(isHubIntelligence(accepted)).toBe(true)
+    expect(approvedHubMemories(accepted)).toEqual([memory])
+    expect(isHubIntelligence(revoked)).toBe(true)
+    expect(approvedHubMemories(revoked)).toEqual([])
+    expect(isHubIntelligenceTransition(accepted,revoked)).toBe(true)
+    expect(isHubIntelligenceTransition(revoked,accepted)).toBe(false)
+    expect(isHubIntelligence({ ...initial,decisions:[revoke] })).toBe(false)
+    expect(isHubIntelligence({ ...initial,decisions:[approval,revoke,revoke] })).toBe(false)
+    expect(isHubIntelligence({ ...initial,decisions:[
+      approval,{ ...revoke, id:'revoke-again' },{ ...revoke,id:'revoke-later' }
+    ] })).toBe(false)
+    expect(isHubIntelligence({ ...initial,decisions:[approval,
+      { ...revoke,createdAt:'2026-01-01T00:00:00Z' }] })).toBe(false)
+    expect(isHubIntelligence({ ...initial,decisions:[approval,
+      { ...revoke, subject:'plan' }] })).toBe(false)
+    expect(isHubIntelligence({ ...revoked,decisions:[
+      { ...approval,justification:'History altered' }, revoke
+    ] })).toBe(true)
+    expect(isHubIntelligenceTransition(revoked,{ ...revoked,decisions:[
+      { ...approval,justification:'History altered' }, revoke
+    ] })).toBe(false)
+  })
+
   it('requires QA target evidence but never confuses a review declaration with CI', () => {
     const initial = { ...emptyHubIntelligence(), plans:[plan()] }
     const qa = { id:'review-1',planId:'plan-a',taskId:'review',reviewer:'human',

@@ -35,8 +35,11 @@ export function buildNativePlanPreview(
   }
   const plan = document.intelligence?.plans.find((candidate) => candidate.id === planId)
   if (!plan || !isHubPlanProposal(plan)) { throw new Error('Plan missing or invalid') }
-  const approval = document.intelligence?.decisions.find((decision) =>
-    decision.subject === 'plan' && decision.subjectId === planId)?.verdict ?? 'pending'
+  const decision = document.intelligence?.decisions.find((candidate) =>
+    candidate.subject === 'plan' && candidate.subjectId === planId)
+  // Revocation applies only to memories; never let an extended union grant plan approval.
+  const approval = decision?.verdict === 'accepted' || decision?.verdict === 'rejected'
+    ? decision.verdict : 'pending'
   return {
     projectId: document.projectId, revision: document.revision,
     planId, planSha: createHash('sha256').update(JSON.stringify(plan)).digest('hex'),
