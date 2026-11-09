@@ -65,14 +65,15 @@ describe('Project Hub worker readiness is deny-only', () => {
   })
 
   it('refuses any previous Dispatch, mismatched DAG or missing host evidence', () => {
-    for (const changes of [
+    const cases: Partial<HubNativeStageRecovery['entries'][number]>[] = [
       { dispatchCount: 1 }, { unrecordedNativeTaskCount: 1 },
       { recordedTaskCount: 1 }, { evidence: 'divergent' as const },
       { runId: null }, { baseSha: 'bad' },
       { tasks: { forge: 'same', qa: 'same' } },
       { tasks: { forge: 'native-forge' } },
       { tasks: { forge: 'native-forge', qa: 'native-qa', extra: 'other' } }
-    ]) {
+    ]
+    for (const changes of cases) {
       const result = evaluateHubWorkerReadiness(preview, stage(changes))
       expect(result.status).toBe('blocked')
       expect(result.dispatchAllowed).toBe(false)
