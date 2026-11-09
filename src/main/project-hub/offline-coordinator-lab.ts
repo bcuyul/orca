@@ -17,6 +17,8 @@ export async function runProjectHubOfflineCoordinatorLab(): Promise<HubOfflineLa
   const events: string[] = []
   let fakeTurns = 0
   let terminalCreations = 0
+  // A callback updates this asynchronously; avoid stale control-flow narrowing.
+  const observedFakeTurns = (): number => fakeTurns
   const coordinatorHandle = 'project-hub-offline-coordinator'
   const workerHandle = 'project-hub-offline-fake-worker'
   let activeCoordinator: Coordinator | null = null
@@ -55,7 +57,7 @@ export async function runProjectHubOfflineCoordinatorLab(): Promise<HubOfflineLa
         throw new Error('Offline lab must never create a terminal')
       },
       async sendTerminalAgentPrompt(handle) {
-        if (handle !== workerHandle || fakeTurns !== 0) {
+        if (handle !== workerHandle || observedFakeTurns() !== 0) {
           throw new Error('Unexpected worker, duplicate prompt or live terminal')
         }
         const dispatch = db.getDispatchContext(syntheticTask.id)
@@ -116,7 +118,7 @@ export async function runProjectHubOfflineCoordinatorLab(): Promise<HubOfflineLa
       const result = await Promise.race([execution, timed])
       if (result.status !== 'completed' ||
           db.getTask(syntheticTask.id)?.status !== 'completed' ||
-          fakeTurns !== 1 || terminalCreations !== 0) {
+          observedFakeTurns() !== 1 || terminalCreations !== 0) {
         throw new Error('Synthetic worker did not complete exactly one native turn')
       }
     } finally {
