@@ -21,6 +21,7 @@ import { evaluateHubWorkerReadiness } from '../../../../shared/project-hub-worke
 import {
   prepareHubPlanAutomatically, type HubSafeAutoStep
 } from '../../../../shared/project-hub-safe-auto-preparation'
+import { buildHubBacklogDagTemplate } from '../../../../shared/project-hub-backlog-dag-template'
 
 type Props = {
   doc: HubDocument
@@ -99,6 +100,9 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [staged, setStaged] = useState<{revision: number; receipt: HubStagedNativePlan} | null>(null)
   const [previewError, setPreviewError] = useState('')
   const [rawPlan, setRawPlan] = useState('')
+  const [backlogTemplateStory, setBacklogTemplateStory] = useState('')
+  const [backlogTemplateRole, setBacklogTemplateRole] =
+    useState<'forge' | 'data' | 'flow'>('forge')
   const [blockerForReplan, setBlockerForReplan] = useState('')
   const [planForBlocker, setPlanForBlocker] = useState('')
   const [taskForBlocker, setTaskForBlocker] = useState('')
@@ -114,6 +118,8 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [qaFindings, setQaFindings] = useState('')
   const [qaVerdict, setQaVerdict] = useState<HubQualityReview['verdict']>('inconclusive')
 
+  const eligibleBacklogItems = doc.items.filter(item =>
+    item.status === 'backlog' || item.status === 'ready')
   const chosenBlocker = state.blockers.find(b => b.id === blockerForReplan)
   const previous = state.plans.find(p => p.id === chosenBlocker?.planId)
   const blockPlan = state.plans.find(p => p.id === planForBlocker)
@@ -267,6 +273,22 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     try { await window.api.ui.writeClipboardText(text); setNotice('Encargo copiado. Revisa el contexto antes de entregarlo a un CLI.') }
     catch { setNotice('No se pudo copiar el encargo.') }
   }
+  async function createBacklogTemplate(): Promise<void> {
+    if (busy || !backlogTemplateStory || state.plans.length >= 30) { return }
+    try {
+      const proposal = buildHubBacklogDagTemplate(doc, {
+        storyId: backlogTemplateStory,
+        planId: newId('plan'), createdAt: stamp(),
+        implementationRole: backlogTemplateRole
+      })
+      if (await persist({ ...state, plans: [...state.plans, proposal] },
+        'DAG generado sin tokens. Revisa y aprueba el plan antes de prepararlo.')) {
+        setBacklogTemplateStory('')
+      }
+    } catch (error) {
+      setNotice(`No se pudo generar el DAG: ${String(error)}`)
+    }
+  }
   async function importPlan(): Promise<void> {
     try {
       const proposal = parseAtlasPlanJson(rawPlan, {
@@ -366,6 +388,38 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
         onClick={() => void copy(renderAtlasPlanningPrompt(doc,previous,chosenBlocker))}>
         Copiar encargo Atlas (SOUL.md)
       </button>
+      <section className="space-y-2 rounded border border-border p-2"
+        aria-label="Generar DAG desde backlog sin IA">
+        <h5 className="font-semibold">Crear plan directamente desde backlog · cero tokens</h5>
+        <p className="text-muted-foreground">
+          Genera un borrador implementación → QA. No llama a Atlas ni autoriza ejecución.
+          Revisa los criterios de aceptación antes de aprobar el plan.
+        </p>
+        <label className="block">Historia o tarea pendiente
+          <select className={field} value={backlogTemplateStory} disabled={busy}
+            onChange={event => setBacklogTemplateStory(event.target.value)}>
+            <option value="">Selecciona un elemento del backlog</option>
+            {eligibleBacklogItems.map(item => <option key={item.id} value={item.id}>
+              {item.id} · {item.title}
+            </option>)}
+          </select>
+        </label>
+        <label className="block">Especialidad de implementación
+          <select className={field} value={backlogTemplateRole} disabled={busy}
+            onChange={event => setBacklogTemplateRole(
+              event.target.value as 'forge' | 'data' | 'flow'
+            )}>
+            <option value="forge">Forge · desarrollo</option>
+            <option value="data">Data · datos</option>
+            <option value="flow">Flow · automatización</option>
+          </select>
+        </label>
+        <button className={action} type="button"
+          disabled={busy || !backlogTemplateStory || state.plans.length >= 30}
+          onClick={() => void createBacklogTemplate()}>
+          Generar DAG desde backlog (sin IA)
+        </button>
+      </section>
       <label className="block">Propuesta JSON de Atlas (no ejecutable)
         <textarea className={field} rows={5} value={rawPlan} disabled={busy} maxLength={30000}
           onChange={e => setRawPlan(e.target.value)}
