@@ -414,7 +414,7 @@ test('Project Hub turns backlog into a two-task DAG without an AI call @project-
   await expect(orcaPage.locator('strong').filter({
     hasText: 'PH-001: Registrar solicitud de pruebas'
   })).toBeVisible()
-  await expect(orcaPage.getByText('Forge: Registrar solicitud de pruebas (forge)', { exact: false }))
+  await expect(orcaPage.getByText('Desarrollo: Registrar solicitud de pruebas (forge)', { exact: false }))
     .toBeVisible()
   await expect(orcaPage.getByText('QA independiente: Registrar solicitud de pruebas (qa)', { exact: false }))
     .toBeVisible()
