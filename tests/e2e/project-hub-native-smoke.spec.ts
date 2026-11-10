@@ -231,6 +231,11 @@ test('Atlas DAG approval → trusted IPC preview without a CLI launch @project-h
   await orcaPage.getByRole('button', { name: 'Aprobar plan' })
     .evaluate((element) => { (element as HTMLButtonElement).click() })
   await expect(orcaPage.getByText('Aprobado manualmente', { exact: false })).toBeVisible()
+  // The guided path is visible only after human plan approval. Its host-owned
+  // consent dialog is intentionally not auto-accepted in this E2E test.
+  await expect(orcaPage.getByRole('button', {
+    name: 'Preparar plan automáticamente (supervisado)'
+  })).toBeVisible()
   await orcaPage.getByRole('button', { name: 'Inspeccionar conversión nativa (sin ejecutar)' })
     .evaluate((element) => { (element as HTMLButtonElement).click() })
   await expect(orcaPage.getByText('Vista previa del Run de Orca')).toBeVisible()
