@@ -17,6 +17,7 @@ import { approvedHubTaskLessons } from '../../../../shared/project-hub-task-memo
 import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
 import type { HubOfflineLabReport } from '../../../../shared/project-hub-offline-lab'
+import { evaluateHubWorkerReadiness } from '../../../../shared/project-hub-worker-readiness'
 
 type Props = {
   doc: HubDocument
@@ -125,6 +126,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const currentRecovery = currentPreview && recovery?.projectId === doc.projectId &&
     recovery.revision === doc.revision && recovery.planSha === currentPreview.planSha &&
     recovery.worktreeId === gitContext?.worktreeId ? recovery.result : null
+  const workerReadiness = evaluateHubWorkerReadiness(currentPreview, currentRecovery)
   async function runOfflineLab(): Promise<void> {
     if (offlineLabBusy || busy) { return }
     setOfflineLabBusy(true)
@@ -357,6 +359,28 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
               onClick={() => void inspectNativeRecovery(currentPreview)}>
               {recoveryBusy ? 'Conciliando SQLite…' : 'Reconciliar Run/Task desde el host (solo lectura)'}
             </button>}
+            {currentRecovery && <div className="rounded border border-border p-3" aria-label="Diagnóstico de preparación de worker">
+              <h5 className="font-semibold">Worker supervisado · preflight (solo lectura)</h5>
+              <p className="text-muted-foreground">
+                {workerReadiness.status === 'candidates-only'
+                  ? 'Hay tareas raíz candidatas, pero ninguna está autorizada para ejecutarse.'
+                  : 'No hay tareas candidatas verificadas. El lanzamiento permanece bloqueado.'}
+              </p>
+              {workerReadiness.runId && <p>Run nativo: <code>{workerReadiness.runId}</code></p>}
+              {workerReadiness.candidates.length > 0 && <ul className="ml-4 list-disc">
+                {workerReadiness.candidates.map(t => <li key={t.taskId}>
+                  {t.title} ({t.role}) · <code>{t.taskId}</code> → <code>{t.nativeTaskId}</code>
+                </li>)}
+              </ul>}
+              {workerReadiness.waiting.length > 0 && <p className="text-muted-foreground">
+                Esperando dependencias: {workerReadiness.waiting.map(t =>
+                  t.taskId + ' ← ' + t.dependsOn.join(', ')).join('; ')}
+              </p>}
+              <ul className="ml-4 list-disc text-muted-foreground">
+                {workerReadiness.reasons.map(reason => <li key={reason}>{reason}</li>)}
+              </ul>
+              <p className="font-medium">Dispatch y ejecución: bloqueados. No se lanzan agentes.</p>
+            </div>}
             {currentRecovery?.status === 'not_found' &&
               <p className="text-muted-foreground">No hay Run nativo registrado para este plan y worktree.</p>}
             {currentRecovery?.status === 'needs_reconciliation' &&
