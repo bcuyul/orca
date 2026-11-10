@@ -377,3 +377,49 @@ test('Project Hub runs the isolated zero-token Coordinator lab from its UI @proj
   await expect(laboratory.getByText('Coordinator: completó tarea ficticia')).toBeVisible()
   await expect(laboratory.getByText('Despachos simulados: 1 · llamadas a modelos: 0')).toBeVisible()
 })
+
+
+test('Project Hub turns backlog into a two-task DAG without an AI call @project-hub-backlog-dag', async ({
+  orcaPage
+}) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) { throw new Error('Missing isolated Electron store') }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Backlog', exact: true })
+    .evaluate(button => { (button as HTMLButtonElement).click() })
+  await orcaPage.getByPlaceholder('Como usuario necesito…').fill('Registrar solicitud de pruebas')
+  await orcaPage.getByPlaceholder('Criterios de aceptación').fill(
+    'El sistema guarda una solicitud sin duplicados'
+  )
+  await orcaPage.getByRole('button', { name: 'Agregar al backlog' })
+    .evaluate(button => { (button as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText('Registrar solicitud de pruebas')).toBeVisible()
+
+  await orcaPage.getByRole('button', { name: 'Inteligencia', exact: true })
+    .evaluate(button => { (button as HTMLButtonElement).click() })
+  const generator = orcaPage.getByRole('region', { name: 'Generar DAG desde backlog sin IA' })
+  await generator.getByRole('combobox', { name: 'Historia o tarea pendiente' })
+    .selectOption('PH-001')
+  await generator.getByRole('button', { name: 'Generar DAG desde backlog (sin IA)' })
+    .evaluate(button => { (button as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText(
+    'DAG generado sin tokens. Revisa y aprueba el plan antes de prepararlo.'
+  )).toBeVisible()
+  await expect(orcaPage.locator('strong').filter({
+    hasText: 'PH-001: Registrar solicitud de pruebas'
+  })).toBeVisible()
+  await expect(orcaPage.getByText('Desarrollo: Registrar solicitud de pruebas (forge)', { exact: false }))
+    .toBeVisible()
+  await expect(orcaPage.getByText('QA independiente: Registrar solicitud de pruebas (qa)', { exact: false }))
+    .toBeVisible()
+  // A generated proposal is not an approved plan and is never a native Dispatch.
+  await expect(orcaPage.getByRole('button', {
+    name: 'Preparar plan automáticamente (supervisado)'
+  })).toHaveCount(0)
+})
