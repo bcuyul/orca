@@ -113,7 +113,9 @@ describe('Project Hub automatic safe preparation, zero-token mode', () => {
 
   it('never stages when synthetic preflight rejects the offline lab evidence', async () => {
     const h = fakeHost()
-    h.offlineLab.mockResolvedValueOnce({ ...lab, modelCalls: 1 })
+    // Simulate untrusted IPC data violating a literal-zero transport contract.
+    const forged = { ...lab, modelCalls: 1 } as unknown as HubOfflineLabReport
+    h.offlineLab.mockResolvedValueOnce(forged)
     await expect(prepareHubPlanAutomatically(input, h))
       .rejects.toThrow(/Offline synthetic preflight failed/)
     expect(h.preview).not.toHaveBeenCalled()
