@@ -94,6 +94,10 @@ export function inspectHubNativeStages(
     const parsed: unknown = JSON.parse(grant.scope_json)
     assertAdaptiveScope(parsed)
     const scope: AdaptiveScope = parsed
+    // The same project/plan may also have independent agent_turn grants.
+    // Those belong to worker admission, not materialization recovery.
+    // A mixed grant claiming materialization still fails closed below.
+    if (!scope.operations.includes('materialize_run')) { continue }
     if (scope.operations.length !== 1 || scope.operations[0] !== 'materialize_run' ||
         scope.maxOperations !== 1 ||
         [...scope.allowedTaskIds].sort().join('\0') !== [...taskIds].sort().join('\0')) {
