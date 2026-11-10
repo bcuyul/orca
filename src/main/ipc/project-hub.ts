@@ -13,6 +13,8 @@ import { getProjectIdentityKey } from '../../shared/project-host-setup-projectio
 import { isHubDocument } from '../../shared/project-hub-types'
 import { ProjectHubStore } from '../project-hub/project-hub-store'
 import { buildNativePlanPreview } from '../project-hub/native-plan-preview'
+import { isHubOfflineLabRequest } from '../../shared/project-hub-offline-lab'
+import { runProjectHubOfflineCoordinatorLab } from '../project-hub/offline-coordinator-lab'
 
 let trustedWindowId: number | null = null
 
@@ -37,6 +39,28 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
     if(!isHubDocument(data.document)) throw new Error('Invalid document')
     return db.save(id,data.document,data.expectedRevision as number)
   })
+  // Separate synthetic SQLite database: never permit access to the user's
+  // orchestration state or model CLIs through this diagnostics-only RPC.
+  let offlineLabInFlight = false
+  ipcMain.handle('projectHub:runOfflineLab', async (event, raw: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame ||
+        !isHubOfflineLabRequest(raw)) {
+      throw new Error('Invalid offline lab request or sender frame')
+    }
+    authorize(event.sender.id, raw.projectId)
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window.isDestroyed() || window.webContents.id !== trustedWindowId) {
+      throw new Error('Offline lab requires the current trusted desktop window')
+    }
+    if (offlineLabInFlight) { throw new Error('Offline laboratory already running') }
+    offlineLabInFlight = true
+    try {
+      return await runProjectHubOfflineCoordinatorLab()
+    } finally {
+      offlineLabInFlight = false
+    }
+  })
+
   // Read-only host projection; no grant, Run, Task, Dispatch or CLI creation.
   ipcMain.handle('projectHub:previewNativePlan', (event, args: unknown) => {
     if (!args || typeof args !== 'object' || Array.isArray(args)) {

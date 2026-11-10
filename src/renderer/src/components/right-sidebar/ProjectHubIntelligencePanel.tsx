@@ -16,6 +16,7 @@ import { HUB_AGENT_PROFILES, type HubAgentProfile } from '../../../../shared/pro
 import { approvedHubTaskLessons } from '../../../../shared/project-hub-task-memory'
 import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
+import type { HubOfflineLabReport } from '../../../../shared/project-hub-offline-lab'
 import { evaluateHubWorkerReadiness } from '../../../../shared/project-hub-worker-readiness'
 
 type Props = {
@@ -76,6 +77,9 @@ function DecisionEditor({ subject, subjectId, busy, onDecide, mode = 'decide' }:
 export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitContext }: Props): React.JSX.Element {
   const state = doc.intelligence ?? emptyHubIntelligence()
   const [notice, setNotice] = useState('')
+  const [offlineLabBusy, setOfflineLabBusy] = useState(false)
+  const [offlineLabReport, setOfflineLabReport] = useState<HubOfflineLabReport | null>(null)
+  const [offlineLabError, setOfflineLabError] = useState('')
   const [preview, setPreview] = useState<NativePlanPreview | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
   const [recoveryBusy, setRecoveryBusy] = useState(false)
@@ -123,6 +127,20 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     recovery.revision === doc.revision && recovery.planSha === currentPreview.planSha &&
     recovery.worktreeId === gitContext?.worktreeId ? recovery.result : null
   const workerReadiness = evaluateHubWorkerReadiness(currentPreview, currentRecovery)
+  async function runOfflineLab(): Promise<void> {
+    if (offlineLabBusy || busy) { return }
+    setOfflineLabBusy(true)
+    setOfflineLabError('')
+    setOfflineLabReport(null)
+    try {
+      const result = await window.api.projectHub.runOfflineLab({ projectId: doc.projectId })
+      setOfflineLabReport(result)
+    } catch (error) {
+      setOfflineLabError(String(error))
+    } finally {
+      setOfflineLabBusy(false)
+    }
+  }
   async function inspectNativeRecovery(fresh: NativePlanPreview): Promise<void> {
     if (!gitContext || gitContext.hostId !== 'local') {
       setRecovery(null)
@@ -262,6 +280,27 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
       Los planes aprobados pueden materializar Run/Task tras una confirmación nativa.
       Dispatch y ejecución requieren autorización separada del host.
     </p>
+    <section className="space-y-2 rounded-lg border border-border bg-card p-3" aria-label="Laboratorio sin tokens">
+      <h4 className="font-semibold">Laboratorio de orquestación · cero tokens</h4>
+      <p className="text-muted-foreground">
+        Prueba SQLite y Coordinator nativos con un worker ficticio. Usa memoria temporal,
+        no modifica proyectos ni llama a modelos; no autoriza ejecutar tu plan.
+      </p>
+      <button type="button" className={action} disabled={busy || offlineLabBusy}
+        onClick={() => void runOfflineLab()}>
+        {offlineLabBusy ? 'Comprobando motor…' : 'Probar orquestación sin tokens'}
+      </button>
+      {offlineLabReport && <div role="status" className="space-y-1 rounded border border-border p-2">
+        <p className="font-semibold">Prueba sintética: {offlineLabReport.status === 'passed' ? 'aprobada' : 'sin verificar'}</p>
+        <p>Run en cuarentena: {offlineLabReport.stagedRunQuarantined ? 'protegido' : 'falló'}</p>
+        <p>Coordinator: {offlineLabReport.syntheticRunCompleted ? 'completó tarea ficticia' : 'falló'}</p>
+        <p>Despachos simulados: {offlineLabReport.syntheticDispatches} · llamadas a modelos: {offlineLabReport.modelCalls}</p>
+        <p className="text-muted-foreground">No demuestra ejecución real, QA de código ni CI.</p>
+      </div>}
+      {offlineLabError && <p role="alert" className="text-destructive">
+        Laboratorio rechazado: {offlineLabError}
+      </p>}
+    </section>
     <section className="space-y-2 rounded-lg border border-border bg-card p-3">
       <h4 className="font-semibold">Atlas · planificación y DAG</h4>
       <p>{state.plans.length} planes propuestos · {state.blockers.length} bloqueos reportados</p>

@@ -343,3 +343,32 @@ test('Project Hub native draft requires explicit user action @project-hub-native
   await expect(panel.getByRole('checkbox', { name: /Revisé el encargo/ }))
     .not.toBeChecked()
 })
+
+
+test('Project Hub runs the isolated zero-token Coordinator lab from its UI @project-hub-offline-lab', async ({
+  orcaPage
+}) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) { throw new Error('Missing isolated Electron store') }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Inteligencia', exact: true })
+    .evaluate((button) => { (button as HTMLButtonElement).click() })
+
+  const laboratory = orcaPage.getByRole('region', { name: 'Laboratorio sin tokens' })
+  await expect(laboratory.getByRole('button', { name: 'Probar orquestación sin tokens' }))
+    .toBeVisible()
+  await laboratory.getByRole('button', { name: 'Probar orquestación sin tokens' })
+    .evaluate((button) => { (button as HTMLButtonElement).click() })
+  await expect(laboratory.getByText('Prueba sintética: aprobada')).toBeVisible({
+    timeout: 15_000
+  })
+  await expect(laboratory.getByText('Run en cuarentena: protegido')).toBeVisible()
+  await expect(laboratory.getByText('Coordinator: completó tarea ficticia')).toBeVisible()
+  await expect(laboratory.getByText('Despachos simulados: 1 · llamadas a modelos: 0')).toBeVisible()
+})
