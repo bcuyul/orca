@@ -18,6 +18,9 @@ import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
 import type { HubOfflineLabReport } from '../../../../shared/project-hub-offline-lab'
 import { evaluateHubWorkerReadiness } from '../../../../shared/project-hub-worker-readiness'
+import {
+  prepareHubPlanAutomatically, type HubSafeAutoStep
+} from '../../../../shared/project-hub-safe-auto-preparation'
 
 type Props = {
   doc: HubDocument
@@ -80,6 +83,10 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [offlineLabBusy, setOfflineLabBusy] = useState(false)
   const [offlineLabReport, setOfflineLabReport] = useState<HubOfflineLabReport | null>(null)
   const [offlineLabError, setOfflineLabError] = useState('')
+  const [autoBusy, setAutoBusy] = useState(false)
+  const [autoError, setAutoError] = useState('')
+  const [autoPlanId, setAutoPlanId] = useState('')
+  const [autoSteps, setAutoSteps] = useState<HubSafeAutoStep[]>([])
   const [preview, setPreview] = useState<NativePlanPreview | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
   const [recoveryBusy, setRecoveryBusy] = useState(false)
@@ -139,6 +146,50 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
       setOfflineLabError(String(error))
     } finally {
       setOfflineLabBusy(false)
+    }
+  }
+  async function prepareAutomatically(planId: string): Promise<void> {
+    if (!gitContext || gitContext.hostId !== 'local' || autoBusy || busy ||
+        stageBusy || previewBusy || recoveryBusy || offlineLabBusy) { return }
+    setAutoBusy(true)
+    setAutoError('')
+    setAutoPlanId(planId)
+    setAutoSteps([])
+    setRecovery(null)
+    setStaged(null)
+    try {
+      const result = await prepareHubPlanAutomatically({
+        projectId: doc.projectId, planId, expectedRevision: doc.revision,
+        worktreeId: gitContext.worktreeId
+      }, {
+        offlineLab: (id) => window.api.projectHub.runOfflineLab({ projectId: id }),
+        preview: (args) => window.api.projectHub.previewNativePlan(args),
+        inspect: (args) => window.api.projectHub.inspectStagedNativePlan(args),
+        stage: (args) => window.api.projectHub.stageNativePlan(args)
+      }, (step) => setAutoSteps(steps => [...steps, step]))
+      setPreview(result.preview)
+      if (result.status === 'cancelled') {
+        setNotice('Preparación cancelada desde la ventana de Orca. Sin ejecución.')
+        return
+      }
+      setRecovery({
+        projectId: doc.projectId, revision: doc.revision,
+        planSha: result.preview.planSha, worktreeId: gitContext.worktreeId,
+        result: result.recovery
+      })
+      if (result.receipt) {
+        setStaged({ revision: doc.revision, receipt: result.receipt })
+      }
+      setNotice(result.reused
+        ? 'Run verificado y reutilizado automáticamente. Ningún agente fue iniciado.'
+        : 'Run/Task materializados y verificados. Ningún agente fue iniciado.')
+    } catch (error) {
+      // Keep unknown effects visible: the host may already have written a Run.
+      // Never retry automatically after errors from materialization or inspection.
+      setAutoError(String(error))
+      setNotice('Preparación detenida. Comprueba los recibos antes de reintentar.')
+    } finally {
+      setAutoBusy(false)
     }
   }
   async function inspectNativeRecovery(fresh: NativePlanPreview): Promise<void> {
@@ -333,7 +384,36 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
           {decision ? <p className="mt-2 text-muted-foreground">
             {decision.verdict === 'accepted' ? 'Aprobado manualmente' : 'Rechazado manualmente'} · {decision.justification}
           </p> : <DecisionEditor subject="plan" subjectId={p.id} busy={busy} onDecide={decide}/>}
-          <button className={action} type="button" disabled={busy || previewBusy}
+          {decision?.verdict === 'accepted' && <button className={action}
+            type="button"
+            disabled={busy || autoBusy || stageBusy || previewBusy || recoveryBusy ||
+              offlineLabBusy || !gitContext || gitContext.hostId !== 'local'}
+            onClick={() => void prepareAutomatically(p.id)}>
+            {autoBusy && autoPlanId === p.id
+              ? 'Preparando con comprobaciones…'
+              : 'Preparar plan automáticamente (supervisado)'}
+          </button>}
+          {autoPlanId === p.id && (autoSteps.length > 0 || !!autoError) &&
+            <div className="mt-2 space-y-1 rounded border border-border p-2"
+              role="status" aria-label="Preparación automática supervisada">
+              <p className="font-semibold">Preparación automática · cero tokens</p>
+              <ol className="ml-4 list-decimal">
+                {autoSteps.map((step, index) =>
+                  <li key={index}>{({
+                    offline_lab: 'Laboratorio nativo sin tokens',
+                    host_preview: 'Plan y aprobación comprobados en host',
+                    host_recovery: 'Recibos SQLite conciliados',
+                    host_confirmation: 'Confirmación independiente en ventana Orca',
+                    verify_receipt: 'Run/Task verificados después de escribir',
+                    prepared: 'Run preparado; Dispatch y agentes bloqueados',
+                    cancelled: 'Cancelado sin autorización de ejecución'
+                  } satisfies Record<HubSafeAutoStep, string>)[step]}</li>)}
+              </ol>
+              {autoError && <p role="alert" className="text-destructive">
+                Preparación detenida: {autoError}. Sin reintento automático.
+              </p>}
+            </div>}
+          <button className={action} type="button" disabled={busy || previewBusy || autoBusy}
             onClick={() => void inspectNativePlan(p.id)}>
             Inspeccionar conversión nativa (sin ejecutar)
           </button>
@@ -348,14 +428,14 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
             </li>)}</ol>
             <p className="font-medium">Vista previa sin efectos. Materializar crea solo Run/Task, nunca Dispatch.</p>
             {currentPreview.approval === 'accepted' && <button className={action} type="button"
-              disabled={stageBusy || busy || recoveryBusy || !!recoveryError ||
+              disabled={stageBusy || busy || recoveryBusy || autoBusy || !!recoveryError ||
                 currentRecovery?.status === 'needs_reconciliation' ||
                 !gitContext || gitContext.hostId !== 'local'}
               onClick={() => void stageNativePlan(currentPreview)}>
               {stageBusy ? 'Validando y solicitando aprobación…' : 'Crear Run/Task nativo (supervisado)'}
             </button>}
             {gitContext?.hostId === 'local' && <button className={action} type="button"
-              disabled={stageBusy || busy || recoveryBusy}
+              disabled={stageBusy || busy || recoveryBusy || autoBusy}
               onClick={() => void inspectNativeRecovery(currentPreview)}>
               {recoveryBusy ? 'Conciliando SQLite…' : 'Reconciliar Run/Task desde el host (solo lectura)'}
             </button>}
