@@ -82,6 +82,11 @@ async function readyHarness() {
   return { ...h, receipt, input: { ...h.request, hubTaskId: 'forge' } }
 }
 const tableCount = (db: OrchestrationDb, name: string): number => {
+  // Permit table creation occurs only after all host preflight gates pass.
+  const exists = db.db.prepare(
+    "SELECT 1 AS exists_flag FROM sqlite_master WHERE type='table' AND name=?"
+  ).get(name)
+  if (!exists) { return 0 }
   const row = db.db.prepare(`SELECT COUNT(*) AS total FROM ${name}`).get() as { total: number }
   return row.total
 }
