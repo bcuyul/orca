@@ -17,6 +17,7 @@ import { approvedHubTaskLessons } from '../../../../shared/project-hub-task-memo
 import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
 import type { HubOfflineLabReport } from '../../../../shared/project-hub-offline-lab'
+import type { HubDispatchRecoveryReport } from '../../../../shared/project-hub-worker-dispatch-recovery'
 import { evaluateHubWorkerReadiness } from '../../../../shared/project-hub-worker-readiness'
 import {
   prepareHubPlanAutomatically, type HubSafeAutoStep
@@ -92,6 +93,12 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [previewBusy, setPreviewBusy] = useState(false)
   const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [recoveryError, setRecoveryError] = useState('')
+  const [workerDispatchBusy, setWorkerDispatchBusy] = useState(false)
+  const [workerDispatchError, setWorkerDispatchError] = useState('')
+  const [workerDispatch, setWorkerDispatch] = useState<{
+    projectId: string; revision: number; planSha: string; worktreeId: string
+    result: HubDispatchRecoveryReport
+  } | null>(null)
   const [recovery, setRecovery] = useState<{
     projectId: string; revision: number; planSha: string; worktreeId: string;
     result: HubNativeStageRecovery
@@ -140,6 +147,9 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     recovery.revision === doc.revision && recovery.planSha === currentPreview.planSha &&
     recovery.worktreeId === gitContext?.worktreeId ? recovery.result : null
   const workerReadiness = evaluateHubWorkerReadiness(currentPreview, currentRecovery)
+  const currentWorkerDispatch = currentPreview && workerDispatch?.projectId === doc.projectId &&
+    workerDispatch.revision === doc.revision && workerDispatch.planSha === currentPreview.planSha &&
+    workerDispatch.worktreeId === gitContext?.worktreeId ? workerDispatch.result : null
   async function runOfflineLab(): Promise<void> {
     if (offlineLabBusy || busy) { return }
     setOfflineLabBusy(true)
@@ -198,6 +208,27 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
       setAutoBusy(false)
     }
   }
+  async function inspectWorkerDispatches(fresh: NativePlanPreview): Promise<void> {
+    if (!gitContext || gitContext.hostId !== 'local' || workerDispatchBusy || busy) { return }
+    setWorkerDispatchBusy(true)
+    setWorkerDispatchError('')
+    setWorkerDispatch(null)
+    try {
+      const result = await window.api.projectHub.inspectWorkerDispatches({
+        projectId: fresh.projectId, planId: fresh.planId,
+        expectedRevision: fresh.revision, planSha: fresh.planSha,
+        worktreeId: gitContext.worktreeId
+      })
+      setWorkerDispatch({
+        projectId: fresh.projectId, revision: fresh.revision,
+        planSha: fresh.planSha, worktreeId: gitContext.worktreeId, result
+      })
+    } catch (error) {
+      setWorkerDispatchError(String(error))
+    } finally {
+      setWorkerDispatchBusy(false)
+    }
+  }
   async function inspectNativeRecovery(fresh: NativePlanPreview): Promise<void> {
     if (!gitContext || gitContext.hostId !== 'local') {
       setRecovery(null)
@@ -232,6 +263,8 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
     setPreviewBusy(true)
     setPreviewError('')
     setRecovery(null)
+    setWorkerDispatch(null)
+    setWorkerDispatchError('')
     try {
       const response = await window.api.projectHub.previewNativePlan({
         projectId: doc.projectId, planId, expectedRevision: doc.revision
@@ -493,6 +526,34 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
               onClick={() => void inspectNativeRecovery(currentPreview)}>
               {recoveryBusy ? 'Conciliando SQLite…' : 'Reconciliar Run/Task desde el host (solo lectura)'}
             </button>}
+            {gitContext?.hostId === 'local' && <button className={action} type="button"
+              disabled={busy || previewBusy || stageBusy || recoveryBusy || autoBusy ||
+                workerDispatchBusy}
+              onClick={() => void inspectWorkerDispatches(currentPreview)}>
+              {workerDispatchBusy ? 'Leyendo recibos de Dispatch…' :
+                'Inspeccionar Dispatch de workers (solo lectura)'}
+            </button>}
+            {currentWorkerDispatch && <div className="space-y-1 rounded border border-border p-3"
+              role="status" aria-label="Recibos de Dispatch de workers">
+              <h5 className="font-semibold">Dispatch de workers · recuperación segura</h5>
+              <p className={currentWorkerDispatch.status === 'needs_reconciliation'
+                ? 'text-destructive' : 'text-muted-foreground'}>
+                {({
+                  not_found: 'Sin reservas de Dispatch para este plan/worktree.',
+                  reserved_unobserved: 'Dispatch reservado; entrega del prompt NO acreditada.',
+                  settled_unverified: 'Task cerrada; evidencia del agente/QA NO verificada.',
+                  needs_reconciliation: 'Recibos inconsistentes: revisión manual obligatoria.'
+                } satisfies Record<HubDispatchRecoveryReport['status'], string>)[currentWorkerDispatch.status]}
+              </p>
+              <p className="font-medium">No se permite reenviar automáticamente ni consumir otra cuota.</p>
+              {currentWorkerDispatch.entries.map(entry => <p key={entry.permitRequestId}>
+                Task <code>{entry.taskId}</code> · Dispatch <code>{entry.dispatchId}</code> ·
+                {entry.disposition} · evidencia: {entry.evidence}
+              </p>)}
+            </div>}
+            {workerDispatchError && <p role="alert" className="text-destructive">
+              No se pudo leer Dispatch: {workerDispatchError}. No reintentar un lanzamiento sin conciliación.
+            </p>}
             {currentRecovery && <div className="rounded border border-border p-3" aria-label="Diagnóstico de preparación de worker">
               <h5 className="font-semibold">Worker supervisado · preflight (solo lectura)</h5>
               <p className="text-muted-foreground">
