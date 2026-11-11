@@ -190,9 +190,9 @@ export function inspectHubWorkerDispatches(
     'adaptive_scope_grants', 'adaptive_admissions',
     'adaptive_execution_permits'
   ]
+  const names = required.map(() => '?').join(',')
   const tables = db.db.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name IN (" +
-    required.map(() => '?').join(',') + ')'
+    `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${names})`
   ).all(...required) as { name: string }[]
   if (!tables.some(row => row.name === 'adaptive_worker_dispatch_claims')) {
     return { ...EMPTY, entries: [] }
