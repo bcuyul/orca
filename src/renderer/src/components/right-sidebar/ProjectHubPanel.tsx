@@ -45,7 +45,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
 
   useEffect(()=>{
     let live=true
-    setDoc(null);setError('');setLoading(true);setApproveChecked(false)
+    setDoc(null);setError('');setLoading(true);setApproveChecked(false);setItemToRemove(null)
     if(!projectId){setLoading(false);return ()=>{live=false}}
     void window.api.projectHub.read(projectId).then(data=>{
       if(live){setDoc(data);setLoading(false)}
