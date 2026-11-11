@@ -198,7 +198,7 @@ export function prepareHubDelegation(input: {
     if (!item) {
       throw new Error('Unknown story')
     }
-    if (!['ready', 'backlog'].includes(item.status)) {
+    if (item.archived || !['ready', 'backlog'].includes(item.status)) {
       throw new Error('Story not ready for delegation')
     }
     if (previous.some((delegation) => delegation.storyId === storyId)) {

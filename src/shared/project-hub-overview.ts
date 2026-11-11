@@ -45,10 +45,11 @@ export type HubOverview = {
 export function projectHubOverview(doc: HubDocument): HubOverview {
   const state = doc.intelligence
   const backlog = {
-    total: doc.items.length,
+    total: doc.items.filter(item => !item.archived).length,
     ready: 0, done: 0, review: 0, blocked: 0
   }
   for (const item of doc.items) {
+    if (item.archived) { continue }
     if (item.status === 'ready') { backlog.ready++ }
     if (item.status === 'done') { backlog.done++ }
     if (item.status === 'review') { backlog.review++ }

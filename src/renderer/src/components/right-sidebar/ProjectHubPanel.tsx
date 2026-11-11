@@ -11,6 +11,7 @@ import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
 import { getProjectIdentityKey } from '../../../../shared/project-host-setup-projection'
 import { resolveHubProjectId } from '../../../../shared/project-hub-project-id'
+import { setHubBacklogItemArchived } from '../../../../shared/project-hub-backlog-archive'
 import {
   PROJECT_HUB_PHASES, PROJECT_HUB_STATUSES, approveHubPhase, hasHubPhaseEvidence,
   type HubDocument, type HubItem, type HubStatus
@@ -38,12 +39,13 @@ export default function ProjectHubPanel(): React.JSX.Element {
   const [loading,setLoading]=useState(true)
   const [itemTitle,setItemTitle]=useState('')
   const [itemAcceptance,setItemAcceptance]=useState('')
+  const [itemToRemove,setItemToRemove]=useState<string|null>(null)
   const [approvalNote,setApprovalNote]=useState('')
   const [approveChecked,setApproveChecked]=useState(false)
 
   useEffect(()=>{
     let live=true
-    setDoc(null);setError('');setLoading(true);setApproveChecked(false)
+    setDoc(null);setError('');setLoading(true);setApproveChecked(false);setItemToRemove(null)
     if(!projectId){setLoading(false);return ()=>{live=false}}
     void window.api.projectHub.read(projectId).then(data=>{
       if(live){setDoc(data);setLoading(false)}
@@ -52,6 +54,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
   },[projectId])
 
   const shown=doc?.projectId===projectId ? doc : null
+  const archivedItems=shown?.items.filter(item=>item.archived)??[]
   async function save(next:HubDocument):Promise<boolean> {
     if(!projectId||!shown||next.projectId!==projectId||busy) { return false }
     setBusy(true);setError('')
@@ -70,6 +73,13 @@ export default function ProjectHubPanel(): React.JSX.Element {
     if(await save({...shown,items:[...shown.items,item]})) {
       setItemTitle('');setItemAcceptance('')
     }
+  }
+  async function archiveStory(id:string, archived:boolean):Promise<void> {
+    if(!shown||busy) { return }
+    try {
+      const next=setHubBacklogItemArchived(shown,id,archived)
+      if(await save(next)) { setItemToRemove(null) }
+    } catch(e) { setError(String(e)) }
   }
   if(!projectId) { return <div className="p-4 text-sm text-muted-foreground">
     Selecciona un worktree perteneciente a un proyecto de Orca para abrir Project Hub.
@@ -118,7 +128,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
         <div className="space-y-2">{PROJECT_HUB_STATUSES.map(status=>
           <div key={status} className="rounded-lg border border-border bg-card p-3">
             <h3 className="mb-2 text-xs font-medium">{STATUS_LABELS[status]}</h3>
-            {shown.items.filter(i=>i.status===status).map(item=>
+            {shown.items.filter(i=>i.status===status&&!i.archived).map(item=>
               <div key={item.id} className="mb-2 rounded border border-border p-2 text-xs">
                 <div className="text-muted-foreground">{item.id} · Fase {item.phase}</div>
                 <div className="my-1 font-medium">{item.title}</div>
@@ -127,9 +137,48 @@ export default function ProjectHubPanel(): React.JSX.Element {
                   className="w-full rounded border border-border bg-background p-1">
                   {PROJECT_HUB_STATUSES.map(x=><option key={x} value={x}>{STATUS_LABELS[x]}</option>)}
                 </select>
+                {(status==='backlog'||status==='ready')&&<div className="mt-2">
+                  {itemToRemove===item.id ? <div className="space-y-2 rounded border border-border bg-muted p-2">
+                    <p>¿Quitar {item.id} del backlog? Podrás restaurarlo. Su historial y vínculos se conservarán.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={busy}
+                        aria-label={`Confirmar quitar ${item.id}`}
+                        onClick={()=>void archiveStory(item.id,true)}
+                        className="rounded bg-destructive px-2 py-1 text-destructive-foreground disabled:opacity-40">
+                        Confirmar quitar
+                      </button>
+                      <button type="button" disabled={busy} onClick={()=>setItemToRemove(null)}
+                        className="rounded bg-muted px-2 py-1 disabled:opacity-40">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div> : <button type="button" disabled={busy}
+                    aria-label={`Quitar ${item.id} del backlog`}
+                    onClick={()=>setItemToRemove(item.id)}
+                    className="rounded border border-border px-2 py-1 text-muted-foreground disabled:opacity-40">
+                    Quitar del backlog
+                  </button>}
+                </div>}
               </div>)}
-            {!shown.items.some(i=>i.status===status)&&<p className="text-xs text-muted-foreground">Sin elementos</p>}
+            {!shown.items.some(i=>i.status===status&&!i.archived)&&<p className="text-xs text-muted-foreground">Sin elementos</p>}
           </div>)}</div>
+        {archivedItems.length>0&&<section aria-label="Historias quitadas del backlog"
+          className="space-y-2 rounded-lg border border-border bg-card p-3">
+          <h3 className="text-xs font-semibold">Quitados del backlog ({archivedItems.length})</h3>
+          <p className="text-xs text-muted-foreground">
+            Ocultos de las listas activas. Se conservan los IDs, planes y vínculos históricos.
+          </p>
+          {archivedItems.map(item=><div key={item.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded border border-border p-2 text-xs">
+            <span>{item.id} · {item.title}</span>
+            <button type="button" disabled={busy}
+              aria-label={`Restaurar ${item.id} al backlog`}
+              onClick={()=>void archiveStory(item.id,false)}
+              className="rounded border border-border px-2 py-1 disabled:opacity-40">
+              Restaurar
+            </button>
+          </div>)}
+        </section>}
         <ProjectHubTaskLinks doc={shown} busy={busy} onSave={save}/>
         <div className="rounded-lg border border-border bg-card p-3">
           <h3 className="mb-2 flex items-center gap-2 text-sm font-medium"><Plus className="h-4 w-4"/> Crear historia</h3>

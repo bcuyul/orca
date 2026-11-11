@@ -54,7 +54,8 @@ export default function ProjectHubDelegationRunner({document,repoId,hostId,branc
   const local=hostId==='local'
   const rows=document.delegations??[]
   const available=document.items.filter(item=>
-    ['backlog','ready'].includes(item.status)&&!rows.some(d=>d.storyId===item.id)
+    !item.archived&&['backlog','ready'].includes(item.status)&&
+    !rows.some(d=>d.storyId===item.id)
   )
   const capacity=summarizeHubDelegationCapacity(rows,repoId,hostId,limit)
   const pending=rows.filter(d=>d.status==='planned'&&d.repoId===repoId&&d.hostId===hostId)

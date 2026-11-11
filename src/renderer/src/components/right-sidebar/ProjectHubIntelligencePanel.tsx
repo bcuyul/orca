@@ -126,7 +126,7 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
   const [qaVerdict, setQaVerdict] = useState<HubQualityReview['verdict']>('inconclusive')
 
   const eligibleBacklogItems = doc.items.filter(item =>
-    item.status === 'backlog' || item.status === 'ready')
+    !item.archived && (item.status === 'backlog' || item.status === 'ready'))
   const chosenBlocker = state.blockers.find(b => b.id === blockerForReplan)
   const previous = state.plans.find(p => p.id === chosenBlocker?.planId)
   const blockPlan = state.plans.find(p => p.id === planForBlocker)

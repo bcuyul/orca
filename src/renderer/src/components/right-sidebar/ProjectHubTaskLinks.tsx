@@ -22,7 +22,9 @@ export default function ProjectHubTaskLinks({ doc, busy, onSave }: Props): React
   const preview = useMemo(() => projectHubBacklogLinks(doc), [doc])
   const evidence = useMemo(() => projectHubStoryEvidence(doc), [doc])
   const [draft, setDraft] = useState<Record<string, string>>({})
-  const stories = doc.items.filter(item => item.type === 'story')
+  const stories = doc.items.filter(item => item.type === 'story' && !item.archived)
+  // Keep historic link targets available for inspection, even if archived.
+  const historicalStories = doc.items.filter(item => item.type === 'story' && item.archived)
   const current = preview.tasks.map(task => ({
     ...task, target: draft[`${doc.projectId}:${preview.approvedPlanId}:${task.id}`] ??
       (task.storyId ?? '')
@@ -87,6 +89,10 @@ export default function ProjectHubTaskLinks({ doc, busy, onSave }: Props): React
                 <option value="">Sin vínculo</option>
                 {stories.map(item => <option key={item.id} value={item.id}>
                   {item.id} · {item.title}
+                </option>)}
+                {historicalStories.map(item => <option key={item.id} value={item.id}
+                  disabled={task.storyId !== item.id}>
+                  {item.id} · {item.title} (quitada del backlog)
                 </option>)}
               </select>
             </label>

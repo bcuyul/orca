@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { emptyProjectHub, isHubDocument } from '../../shared/project-hub-types'
 import { prepareHubDelegation } from '../../shared/project-hub-delegation'
+import { setHubBacklogItemArchived } from '../../shared/project-hub-backlog-archive'
 
 // A test-only writer avoids depending on Windows ACL addons in isolated unit tests.
 vi.mock('../../shared/secure-file',()=>({
@@ -19,6 +20,28 @@ let root:string
 beforeEach(()=>{root=mkdtempSync(join(tmpdir(),'project-hub-'))})
 afterEach(()=>{rmSync(root,{force:true,recursive:true})})
 describe('ProjectHubStore',()=>{
+  it('allows reversible removal but rejects deleting persisted backlog IDs',()=>{
+    const store=new ProjectHubStore(root)
+    const projectId='repo:archive-lab'
+    const initial=emptyProjectHub(projectId)
+    initial.items=[{
+      id:'PH-001',title:'Registro de incidencias',type:'story',
+      status:'backlog',phase:1,source:'local',description:'',
+      acceptance:'La incidencia queda registrada'
+    }]
+    const created=store.save(projectId,initial,0)
+    expect(()=>store.save(projectId,{...created,items:[]},1))
+      .toThrow(/Backlog item IDs cannot be deleted/)
+    expect(store.read(projectId).items).toHaveLength(1)
+    const hidden=store.save(projectId,
+      setHubBacklogItemArchived(created,'PH-001',true),1)
+    expect(hidden.items[0]?.archived).toBe(true)
+    expect(hidden.items[0]?.id).toBe('PH-001')
+    const restored=store.save(projectId,
+      setHubBacklogItemArchived(hidden,'PH-001',false),2)
+    expect(restored.items[0]?.archived).toBe(false)
+    expect(restored.revision).toBe(3)
+  })
   it('isolates projects without putting paths or ids in filenames',()=>{
     const store=new ProjectHubStore(root)
     const a=emptyProjectHub('github:org/a')
