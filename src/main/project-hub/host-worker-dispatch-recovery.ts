@@ -1,8 +1,7 @@
 import type { OrchestrationDb } from '../runtime/orchestration/db/orchestration-db'
 import { assertAdaptiveScope } from '../../shared/adaptive-delivery/admission-contracts'
 import type {
-  HubReservedNativeDispatch, VerifiedHubWorkerDispatchTarget,
-  VerifiedHubWorkerTerminal
+  VerifiedHubWorkerDispatchTarget
 } from './host-worker-atomic-dispatch'
 
 /**
