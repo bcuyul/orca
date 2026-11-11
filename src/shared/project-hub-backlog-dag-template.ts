@@ -23,7 +23,7 @@ export function buildHubBacklogDagTemplate(
     throw new Error('Invalid deterministic plan configuration')
   }
   const item = document.items.find(story => story.id === request.storyId)
-  if (!item || !['backlog', 'ready'].includes(item.status)) {
+  if (!item || item.archived || !['backlog', 'ready'].includes(item.status)) {
     throw new Error('Backlog item is missing or already in progress')
   }
   if (item.acceptance.trim().length < 5) {
