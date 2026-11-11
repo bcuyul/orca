@@ -6,6 +6,7 @@ import { emptyProjectHub, isHubDocument, hasHubPhaseEvidence, type HubDocument }
 import { isHubDelegationTransition } from '../../shared/project-hub-delegation'
 import { isHubIntelligenceTransition } from '../../shared/project-hub-intelligence'
 import { isHubTaskLinkTransition } from '../../shared/project-hub-backlog-links'
+import { preservesHubBacklogItemIdentities } from '../../shared/project-hub-backlog-archive'
 
 const LIMIT = 512 * 1024
 export function hubFilePath(root: string, projectId: string): string {
@@ -43,6 +44,9 @@ export class ProjectHubStore {
         before.warning !== after.warning
     })) {
       throw new Error('Delegation launch state requires host-verified evidence')
+    }
+    if (!preservesHubBacklogItemIdentities(prev.items, incoming.items)) {
+      throw new Error('Backlog item IDs cannot be deleted; archive the item instead')
     }
     if(!isHubIntelligenceTransition(prev.intelligence,incoming.intelligence)) { throw new Error('Intelligence evidence is append-only: revisions require new records') }
     if (!isHubTaskLinkTransition(prev.taskLinks, incoming.taskLinks)) {
