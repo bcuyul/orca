@@ -7,6 +7,7 @@ import { resolveHubProjectId } from '../../shared/project-hub-project-id'
 import { projectHubLocalGitSnapshot } from '../../shared/project-hub-git-assist'
 import { stageHubNativePlan } from '../project-hub/supervised-native-plan-stage'
 import { inspectHubNativeStages } from '../project-hub/native-stage-recovery'
+import { inspectHubWorkerDispatches } from '../project-hub/host-worker-dispatch-recovery'
 import { isHubStageNativePlanRequest, type HubStageNativePlanRequest } from '../../shared/project-hub-supervised-stage'
 import type { Store } from '../persistence/loading-store/store'
 import { getProjectIdentityKey } from '../../shared/project-host-setup-projection'
@@ -165,6 +166,26 @@ export function registerProjectHubHandlers(store: Store, runtime: OrcaRuntimeSer
       throw new Error('Stale Project Hub plan; reload before inspection')
     }
     return inspectHubNativeStages(runtime.getOrchestrationDb(), preview, ownership)
+  })
+
+  // Inspection is host-owned and strictly read-only. This RPC cannot issue
+  // permits, resend prompts, mark completion or change Task/Dispatch state.
+  ipcMain.handle('projectHub:inspectWorkerDispatches', (event, raw: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame ||
+        !isHubStageNativePlanRequest(raw)) {
+      throw new Error('Invalid worker Dispatch inspection origin or request')
+    }
+    const projectId = authorize(event.sender.id, raw.projectId)
+    const ownership = localHubWorktree(projectId, raw.worktreeId)
+    const preview = buildNativePlanPreview(db.read(projectId), raw.planId, raw.expectedRevision)
+    if (preview.planSha !== raw.planSha) {
+      throw new Error('Stale Project Hub plan; reload before inspecting Dispatch')
+    }
+    return inspectHubWorkerDispatches(runtime.getOrchestrationDb(), {
+      projectId, repoId: ownership.repoId, hostId: ownership.hostId,
+      worktreeId: ownership.worktreeId, planId: preview.planId,
+      planSha: preview.planSha
+    })
   })
 
 }
