@@ -429,3 +429,57 @@ test('Project Hub turns backlog into a two-task DAG without an AI call @project-
     name: 'Preparar plan automáticamente (supervisado)'
   })).toHaveCount(0)
 })
+
+
+test('Project Hub removes and restores a backlog story without deleting its ID @project-hub-backlog-archive', async ({ orcaPage }) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const store = window.__store?.getState()
+    if (!store) { throw new Error('No isolated Project Hub store') }
+    store.setRightSidebarOpen(true)
+    store.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Backlog', exact: true })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await orcaPage.getByPlaceholder('Como usuario necesito…')
+    .fill('Historia temporal para quitar')
+  await orcaPage.getByPlaceholder('Criterios de aceptación')
+    .fill('La historia se puede archivar y restaurar')
+  await orcaPage.getByRole('button', { name: 'Agregar al backlog' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText('Historia temporal para quitar')).toBeVisible()
+  const remove = orcaPage.getByRole('button', { name: 'Quitar PH-001 del backlog' })
+  await remove.evaluate(el => { (el as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText(/Podrás restaurarlo/)).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Cancelar' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText('Historia temporal para quitar')).toBeVisible()
+  await remove.evaluate(el => { (el as HTMLButtonElement).click() })
+  await orcaPage.getByRole('button', { name: 'Confirmar quitar PH-001' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  const archived = orcaPage.getByRole('region', { name: 'Historias quitadas del backlog' })
+  await expect(archived.getByText('PH-001 · Historia temporal para quitar')).toBeVisible()
+  await expect(orcaPage.getByRole('button', { name: 'Quitar PH-001 del backlog' })).toHaveCount(0)
+
+  // Reopen from a fresh React instance; the archive must survive real IPC persistence.
+  await orcaPage.evaluate(() => {
+    window.__store?.getState().setRightSidebarTab('explorer')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toHaveCount(0)
+  await orcaPage.evaluate(() => {
+    window.__store?.getState().setRightSidebarTab('project-hub')
+  })
+  await orcaPage.getByRole('button', { name: 'Backlog', exact: true })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await expect(orcaPage.getByRole('region', { name: 'Historias quitadas del backlog' })
+    .getByText('PH-001 · Historia temporal para quitar')).toBeVisible()
+
+  await orcaPage.getByRole('button', { name: 'Restaurar PH-001 al backlog' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await expect(orcaPage.getByRole('button', { name: 'Quitar PH-001 del backlog' }))
+    .toBeVisible()
+  await expect(orcaPage.getByRole('region', { name: 'Historias quitadas del backlog' }))
+    .toHaveCount(0)
+})
