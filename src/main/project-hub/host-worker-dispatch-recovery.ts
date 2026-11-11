@@ -1,4 +1,7 @@
 import type { OrchestrationDb } from '../runtime/orchestration/db/orchestration-db'
+import type {
+  HubDispatchRecoveryEntry, HubDispatchRecoveryReport
+} from '../../shared/project-hub-worker-dispatch-recovery'
 import { assertAdaptiveScope } from '../../shared/adaptive-delivery/admission-contracts'
 import type {
   VerifiedHubWorkerDispatchTarget
@@ -15,25 +18,6 @@ export type HubDispatchRecoveryIdentity = Pick<
   VerifiedHubWorkerDispatchTarget,
   'projectId' | 'repoId' | 'hostId' | 'worktreeId' | 'planId' | 'planSha'
 >
-export type HubDispatchRecoveryEntry = {
-  permitRequestId: string
-  runId: string
-  taskId: string
-  dispatchId: string
-  taskStatus: string | null
-  dispatchStatus: string | null
-  evidence: 'matched' | 'divergent'
-  disposition: 'reserved_unobserved' | 'settled_unverified' | 'manual_reconciliation'
-}
-export type HubDispatchRecoveryReport = {
-  status: 'not_found' | 'reserved_unobserved' |
-    'settled_unverified' | 'needs_reconciliation'
-  entries: HubDispatchRecoveryEntry[]
-  safeToResend: false
-  executionAuthorized: false
-  deliveryVerified: false
-}
-
 type Claim = {
   permit_request_id: string
   run_id: string

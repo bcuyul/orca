@@ -6,5 +6,6 @@ export const projectHubApi: ProjectHubApi = {
   previewNativePlan: (args) => ipcRenderer.invoke('projectHub:previewNativePlan', args),
   stageNativePlan: (args) => ipcRenderer.invoke('projectHub:stageNativePlan', args),
   inspectStagedNativePlan: (args) => ipcRenderer.invoke('projectHub:inspectStagedNativePlan', args),
+  inspectWorkerDispatches: (args) => ipcRenderer.invoke('projectHub:inspectWorkerDispatches', args),
   save: (args) => ipcRenderer.invoke('projectHub:save',args)
 }
