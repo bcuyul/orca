@@ -483,3 +483,48 @@ test('Project Hub removes and restores a backlog story without deleting its ID @
   await expect(orcaPage.getByRole('region', { name: 'Historias quitadas del backlog' }))
     .toHaveCount(0)
 })
+
+
+test('Project Hub previews a Run-to-CLI handoff without launching workers @project-hub-handoff-preview', async ({
+  orcaPage
+}) => {
+  test.setTimeout(180_000)
+  await waitForStartupWorktreeRefresh(orcaPage)
+  await orcaPage.evaluate(() => {
+    const state = window.__store?.getState()
+    if (!state) { throw new Error('Missing isolated store') }
+    state.setRightSidebarOpen(true)
+    state.setRightSidebarTab('project-hub')
+  })
+  await expect(orcaPage.getByText('PROJECT HUB · NATIVO')).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Backlog', exact: true })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await orcaPage.getByPlaceholder('Como usuario necesito…')
+    .fill('Crear una tarea de laboratorio de handoff')
+  await orcaPage.getByPlaceholder('Criterios de aceptación')
+    .fill('La tarea se planifica pero no se ejecuta sin autorización')
+  await orcaPage.getByRole('button', { name: 'Agregar al backlog' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await orcaPage.getByRole('button', { name: 'Inteligencia', exact: true })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  const generator = orcaPage.getByRole('region', { name: 'Generar DAG desde backlog sin IA' })
+  await generator.getByRole('combobox', { name: 'Historia o tarea pendiente' })
+    .selectOption('PH-001')
+  await generator.getByRole('button', { name: 'Generar DAG desde backlog (sin IA)' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  await expect(orcaPage.getByText(
+    'DAG generado sin tokens. Revisa y aprueba el plan antes de prepararlo.'
+  )).toBeVisible()
+  await orcaPage.getByRole('button', { name: 'Inspeccionar conversión nativa (sin ejecutar)' })
+    .evaluate(el => { (el as HTMLButtonElement).click() })
+  const handoff = orcaPage.getByRole('region', {
+    name: 'Preparación del traspaso de worker sin tokens'
+  })
+  await expect(handoff.getByText('Traspaso Run → CLI · solo propuesta')).toBeVisible()
+  await expect(handoff.getByText('Falta un plan aprobado y una vista previa vigente.'))
+    .toBeVisible()
+  await expect(handoff.getByText('Ejecución y envío automático: bloqueados. Llamadas a modelos: 0.'))
+    .toBeVisible()
+  await expect(handoff.getByRole('button', { name: 'Copiar encargo del worker (sin ejecutar)' }))
+    .toHaveCount(0)
+})

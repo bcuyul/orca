@@ -16,6 +16,7 @@ import { HUB_AGENT_PROFILES, type HubAgentProfile } from '../../../../shared/pro
 import { approvedHubTaskLessons } from '../../../../shared/project-hub-task-memory'
 import ProjectHubHandoffPanel from './ProjectHubHandoffPanel'
 import ProjectHubNativeDraftPanel from './ProjectHubNativeDraftPanel'
+import ProjectHubWorkerHandoffPreview from './ProjectHubWorkerHandoffPreview'
 import type { HubOfflineLabReport } from '../../../../shared/project-hub-offline-lab'
 import type { HubDispatchRecoveryReport } from '../../../../shared/project-hub-worker-dispatch-recovery'
 import { evaluateHubWorkerReadiness } from '../../../../shared/project-hub-worker-readiness'
@@ -576,6 +577,17 @@ export default function ProjectHubIntelligencePanel({ doc, busy, onSave, gitCont
               </ul>
               <p className="font-medium">Dispatch y ejecución: bloqueados. No se lanzan agentes.</p>
             </div>}
+            {<ProjectHubWorkerHandoffPreview
+              doc={doc}
+              preview={currentPreview}
+              readiness={workerReadiness}
+              dispatchRecovery={currentWorkerDispatch}
+              baseSha={currentRecovery?.status === 'completed_verified' &&
+                currentRecovery.entries.length === 1
+                ? currentRecovery.entries[0]!.baseSha : null}
+              hostId={gitContext?.hostId ?? ''}
+              worktreeId={gitContext?.worktreeId ?? ''}
+            />}
             {currentRecovery?.status === 'not_found' &&
               <p className="text-muted-foreground">No hay Run nativo registrado para este plan y worktree.</p>}
             {currentRecovery?.status === 'needs_reconciliation' &&
