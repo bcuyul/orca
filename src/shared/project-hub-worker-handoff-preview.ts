@@ -61,6 +61,7 @@ export function previewHubWorkerHandoff(input: HubWorkerHandoffInput): HubWorker
   if (!input.preview || input.preview.projectId !== input.document.projectId ||
       input.preview.revision !== input.document.revision ||
       !plan || input.preview.approval !== 'accepted' ||
+      input.preview.dispatched !== false || input.preview.planId !== plan.id ||
       !input.document.intelligence?.decisions.some(d => d.subject === 'plan' &&
         d.subjectId === plan.id && d.verdict === 'accepted')) {
     blockers.push('Falta un plan aprobado y una vista previa vigente.')
