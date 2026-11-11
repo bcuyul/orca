@@ -13,6 +13,8 @@ export type HubItem = {
   id: string; title: string; type: 'story'|'task'|'bug'|'ticket'
   status: HubStatus; phase: number; source: string
   acceptance: string; description: string
+  /** Hidden from active Backlog; kept for stable IDs, plans and audit links. */
+  archived?: boolean
 }
 export type HubDocument = {
   schema: 1; projectId: string; revision: number; phase: number
@@ -70,7 +72,8 @@ export function isHubDocument(d: unknown): d is HubDocument {
     if (!isRecord(item)||!str(item.id,80)||!/^[a-zA-Z0-9_-]{2,80}$/.test(item.id)||ids.has(item.id)||
       !str(item.title,160)||!item.title.trim()||!['story','task','bug','ticket'].includes(String(item.type))||
       !status(item.status)||!phase(item.phase)||!str(item.source,120)||
-      !str(item.acceptance,2000)||!str(item.description,4000)) { return false }
+      !str(item.acceptance,2000)||!str(item.description,4000)||
+      (item.archived !== undefined && typeof item.archived !== 'boolean')) { return false }
     ids.add(item.id)
   }
   if(d.delegations!==undefined && !isHubDelegationList(d.delegations,ids)) { return false }
