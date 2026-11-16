@@ -6,6 +6,7 @@ import ProjectHubIntelligencePanel from './ProjectHubIntelligencePanel'
 import ProjectHubOverview from './ProjectHubOverview'
 import ProjectHubNativeAgentPreview from './ProjectHubNativeAgentPreview'
 import ProjectHubMathPreview from './ProjectHubMathPreview'
+import ProjectHubCodeModeReadOnly from './ProjectHubCodeModeReadOnly'
 import ProjectHubTaskLinks from './ProjectHubTaskLinks'
 import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection, useRepoById } from '@/store/selectors'
@@ -210,6 +211,7 @@ export default function ProjectHubPanel(): React.JSX.Element {
           hostId={worktree?.hostId??''} branch={worktree?.branch??''}
           onSave={save}/>
       </div>}
+      {tab==='intelligence'&&<ProjectHubCodeModeReadOnly key={`code-mode:${projectId}:${worktree?.id ?? ''}`} document={shown}/>}
       {tab==='intelligence'&&<ProjectHubIntelligencePanel key={`${projectId}:${worktree?.id ?? ''}`}
         doc={shown} busy={busy} onSave={save}
         gitContext={worktree ? {
