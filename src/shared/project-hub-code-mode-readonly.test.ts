@@ -77,7 +77,7 @@ describe('Project Hub local Code Mode — safe read-only recipe', () => {
     ]).status).toBe('blocked')
     expect(runHubCodeModeReadOnly(doc, doc.projectId, [
       'hub.backlog.summary', 'host.exec' as 'hub.plans.summary'
-    ]).toMatchObject({
+    ])).toMatchObject({
       status: 'blocked', toolCalls: 0, generatedCodeExecuted: false
     })
     expect(runHubCodeModeReadOnly(doc, doc.projectId, []).status).toBe('blocked')
